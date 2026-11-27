@@ -11,7 +11,8 @@ const { createServer } = require('./api/app');
 const { createAdmin } = require('./admin/routes');
 const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
-const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL, operators } = require('./config');
+const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
+const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
 const catalogFile = path.join(ROOT, 'data', 'catalog.json');
@@ -35,14 +36,37 @@ const log = {
 };
 
 const users = new Users(path.join(ROOT, 'data', 'users.json'));
+// Нощно обновяване на каталога – в сървъра (един пишещ: админът и обновяването не си презаписват файла)
+const lastFile = path.join(ROOT, 'data', 'catalog-refresh.json');
+const catalogJob = {
+  running: false,
+  last: fs.existsSync(lastFile) ? JSON.parse(fs.readFileSync(lastFile, 'utf8')) : null,
+  async run() {
+    if (this.running) return false;
+    this.running = true;
+    try {
+      this.last = await refreshCatalog({ catalog, suppliers, dataDir: path.join(ROOT, 'data'), content, log });
+    } catch (e) {
+      log.error('[каталог] обновяването не успя:', e);
+      this.last = { at: new Date().toISOString(), error: e.message };
+    } finally {
+      this.running = false;
+      fs.writeFileSync(lastFile, JSON.stringify(this.last));
+    }
+    return true;
+  },
+};
+scheduleDaily(CATALOG_TIME, () => catalogJob.run());
+
 const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
-const admin = createAdmin({ bookings, users, content, catalog, opNames, siteUrl: SITE_URL, log });
+const admin = createAdmin({ bookings, users, content, catalog, catalogJob, opNames, siteUrl: SITE_URL, log });
 
 const server = createServer({ engine, catalog, bookings, admin, content, siteUrl: SITE_URL, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела, ${catalog.review().length} връзки за проверка – не се ползват за цени)`);
   if (chains) log.info(`  каталог: ${chains} верижни връзки станаха „за проверка“ (админ → Каталог)`);
+  log.info(`  каталог: обновяване от операторите всяка нощ в ${CATALOG_TIME}${catalogJob.last ? `, последно ${catalogJob.last.at}` : ''}`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
   log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
   const cc = content.counts();

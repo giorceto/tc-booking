@@ -55,6 +55,8 @@ module.exports = {
   SITE_URL: (env.SITE_URL || 'https://www.tours-club.com').replace(/\/+$/, ''),
   // Надценка върху нетната цена на доставчика (%), докато няма правила по хотел/сезон
   MARKUP_PCT: Number(env.MARKUP_PCT || 0),
+  // Кога всяка нощ се обновява каталогът от операторите (местно време, hh:mm)
+  CATALOG_TIME: env.CATALOG_TIME || '03:40',
   // Колко минути пазим резултат от търсене при доставчик
   CACHE_MIN: Number(env.CACHE_MIN || 15),
   operators: operators(),

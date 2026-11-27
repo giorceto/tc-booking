@@ -152,3 +152,58 @@ test('преместване към друг хотел: ROYAL, вързан п�
   assert.throws(() => c.move('H2', ['SUMMER'], 'H1'), /вече има връзка към SUMMER/);
   assert.strictEqual(c.get('H2').links.SUMMER.state, 'check', 'при грешка нищо не се мести');
 });
+
+test('нощно обновяване: нов хотел се добавя, оператор с грешка или с много по-малко хотели се пропуска', async () => {
+  const { refreshCatalog } = require('../src/catalog/refresh');
+  const dir = tmp();
+  const catalog = new Catalog(pegasos(dir));
+  // CCC миналия път имаше 40 хотела, днес връща 3 – нещо не е наред при тях
+  fs.writeFileSync(path.join(dir, 'hotels-CCC.json'), JSON.stringify(Array.from({ length: 40 }, (_, i) => ({ code: `C${i}`, name: `HOTEL ${i}` }))));
+  const suppliers = {
+    SUMMER: { hotels: async () => [{ code: 'PEGROY', name: 'AQI PEGASOS ROYAL', area: 'ALANYA' }, { code: 'NEWH', name: 'BRAND NEW BEACH HOTEL', area: 'SIDE / KIZILOT', category: '5*', id: 77 }] },
+    IRELS: { hotels: async () => { throw new Error('HTTP 500'); } },
+    CCC: { hotels: async () => [{ code: 'C1', name: 'HOTEL 1' }, { code: 'C2', name: 'HOTEL 2' }, { code: 'C3', name: 'HOTEL 3' }] },
+  };
+  let matched = 0;
+  const content = { match: () => ++matched };
+  const quiet = { info() {}, warn() {}, error() {} };
+  const r = await refreshCatalog({ catalog, suppliers, dataDir: dir, content, log: quiet });
+  assert.strictEqual(r.ops.SUMMER.created, 1);
+  assert.strictEqual(r.ops.SUMMER.already, 1);
+  assert.match(r.ops.IRELS.error, /HTTP 500/);
+  assert.match(r.ops.CCC.skipped, /3 хотела/);
+  const h = catalog.byLink.get('SUMMER:NEWH');
+  assert.deepStrictEqual([h.name, h.area, h.stars], ['BRAND NEW BEACH HOTEL', 'SIDE', 5]);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'hotels-SUMMER.json'), 'utf8'))[1].id, 77, 'списъкът за търсене по курорт (Sedna HotelId)');
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'hotels-CCC.json'), 'utf8')).length, 40, 'пропуснатият не се презаписва');
+  assert.strictEqual(matched, 1, 'снимките от сайта – наново');
+  assert.ok(new Catalog(path.join(dir, 'catalog.json')).byLink.get('SUMMER:NEWH'), 'записано на диска');
+  assert.strictEqual(catalog.get('H1').links.IRELS.state, 'check', 'решенията от каталога не се пипат');
+});
+
+test('админ: обновяване на каталога на ръка – пуска се веднъж, статусът се вижда', async (t) => {
+  const dir = tmp();
+  const catalog = new Catalog(pegasos(dir));
+  let runs = 0;
+  const job = { running: false, last: null, async run() { runs++; this.running = true; await new Promise((r) => setTimeout(r, 50)); this.last = { at: 'x', ops: {} }; this.running = false; } };
+  const users = new Users(path.join(dir, 'u.json'));
+  users.add('ana', 'много-тайна-парола');
+  const quiet = { info() {}, warn() {}, error() {} };
+  const admin = createAdmin({ bookings: new BookingStore(path.join(dir, 'b.json')), users, catalog, catalogJob: job, log: quiet });
+  const server = createServer({ engine: { activeOps: () => [] }, catalog, bookings: null, admin, log: quiet });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const login = await fetch(base + '/admin/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: 'ana', password: 'много-тайна-парола' }) });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const post = async () => (await fetch(base + '/admin/api/catalog/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie }, body: '{}' })).json();
+  assert.deepStrictEqual(await post(), { running: true, started: true });
+  assert.deepStrictEqual(await post(), { running: true, started: false }, 'второ натискане докато върви – не');
+  await new Promise((r) => setTimeout(r, 80));
+  const st = await (await fetch(base + '/admin/api/catalog/refresh', { headers: { Cookie } })).json();
+  assert.deepStrictEqual(st, { running: false, last: { at: 'x', ops: {} } });
+  assert.strictEqual(runs, 1);
+});

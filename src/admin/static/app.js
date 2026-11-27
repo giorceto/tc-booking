@@ -391,20 +391,56 @@ const kat = { q: '', items: [], counts: {}, total: 0, picker: null }; // picker:
 let $klist, $kcount;
 const LINK_STATE = { ok: 'проверена', auto: 'автоматична', check: 'за проверка' };
 
+let $krefresh;
+function refreshText(st) {
+  const l = st.last;
+  if (st.running) return 'Обновяване от операторите… (1–3 мин)';
+  if (!l) return 'От операторите: още не е обновяван';
+  if (l.error) return `От операторите: грешка ${when(l.at)} – ${l.error}`;
+  const ops = Object.entries(l.ops || {});
+  const created = ops.reduce((n, [, s]) => n + (s.created || 0), 0);
+  const bad = ops.filter(([, s]) => s.error || s.skipped).map(([op]) => op);
+  return `От операторите: ${when(l.at)} · +${created} нови хотела${bad.length ? ` · без ${bad.join(', ')}` : ''}`;
+}
+async function loadRefresh(poll = false) {
+  try {
+    const st = await api('api/catalog/refresh');
+    if (!$krefresh || !document.body.contains($krefresh)) return;
+    $krefresh.querySelector('span').textContent = refreshText(st);
+    $krefresh.querySelector('button').disabled = st.running;
+    if (st.running) setTimeout(() => loadRefresh(true), 3000);
+    else if (poll) {
+      toast('Каталогът е обновен');
+      loadCatalog();
+    }
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
+}
+
 function renderCatalogView() {
   $kcount = h('span', { class: 'muted' });
+  $krefresh = h('div', { class: 'krefresh muted small' }, h('span', null, ''), h('button', { class: 'small-btn', onclick: async () => {
+    try {
+      await api('api/catalog/refresh', {});
+      loadRefresh(true);
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  } }, 'Обнови сега'));
   const search = h('input', { type: 'search', placeholder: 'Търсене в целия каталог: име, код, H-номер…', value: kat.q, oninput: debounce(() => {
     kat.q = search.value;
     loadCatalog();
   }, 300) });
   $klist = h('section', { class: 'clist' });
   $app.replaceChildren(header(),
-    h('div', { class: 'toolbar' }, $kcount, search),
+    h('div', { class: 'toolbar' }, $kcount, search, h('span', { class: 'spacer' }), $krefresh),
     h('p', { class: 'muted small hint' },
       'Връзките „за проверка“ НЕ се ползват за цени, докато не ги потвърдите. Ако операторът продава друг хотел – „Премести към…“ (ако хотелът вече е в каталога) или „Отдели в нов хотел“. ',
       'Верижните връзки следват връзката, през която са станали.'),
     $klist);
   loadCatalog();
+  loadRefresh();
 }
 
 async function loadCatalog() {

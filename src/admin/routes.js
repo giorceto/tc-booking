@@ -31,7 +31,7 @@ const pageHeaders = (siteUrl) => ({
 });
 
 // content/catalog – по желание: преглед на снимките от сайта и връзките им с каталога
-function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+function createAdmin({ bookings, users, content, catalog, catalogJob, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
   const PAGE_HEADERS = pageHeaders(siteUrl);
   const files = Object.fromEntries(Object.entries(STATIC).map(([url, [f, type]]) => [url, { body: fs.readFileSync(path.join(STATIC_DIR, f)), type }]));
 
@@ -47,6 +47,8 @@ function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl 
     ['POST', /^\/admin\/api\/content\/(\d+)\/(confirm|unlink|link)$/, contentAction],
     ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
     ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
+    ['GET', /^\/admin\/api\/catalog\/refresh$/, refreshStatus],
+    ['POST', /^\/admin\/api\/catalog\/refresh$/, refreshStart],
     ['POST', /^\/admin\/api\/catalog\/(H\d+)\/(confirm|split|move)$/, catalogAction],
   ];
 
@@ -64,10 +66,14 @@ function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl 
         res.end(f.body);
         return;
       }
+      let wrongMethod = false;
       for (const [method, re, fn, opt = {}] of routes) {
         const m = url.pathname.match(re);
         if (!m) continue;
-        if (req.method !== method) throw new HttpError(405, 'Методът не е разрешен');
+        if (req.method !== method) {
+          wrongMethod = true; // същият адрес може да е по-долу с друг метод (GET и POST на /catalog/refresh)
+          continue;
+        }
         const token = parseCookies(req)[COOKIE];
         const s = sessions.get(token);
         // потребител, изтрит от data/users.json, излиза веднага
@@ -78,7 +84,7 @@ function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl 
         sendJson(res, 200, out);
         return;
       }
-      throw new HttpError(404, 'Няма такъв адрес');
+      throw wrongMethod ? new HttpError(405, 'Методът не е разрешен') : new HttpError(404, 'Няма такъв адрес');
     } catch (e) {
       if (res.headersSent) return void res.end();
       if (e instanceof HttpError) sendJson(res, e.status, { error: e.message });
@@ -270,6 +276,20 @@ function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl 
         why: linkWhy(h, op, l),
       })),
     };
+  }
+
+  // Обновяване от операторите (нощно; оттук – на ръка). Върви във фона, страницата пита за състоянието.
+  function refreshStatus() {
+    if (!catalogJob) throw new HttpError(404, 'Няма обновяване');
+    return { running: catalogJob.running, last: catalogJob.last };
+  }
+
+  function refreshStart({ user }) {
+    if (!catalogJob) throw new HttpError(404, 'Няма обновяване');
+    if (catalogJob.running) return { running: true, started: false };
+    log.info(`[admin] ${user}: обнови каталога от операторите`);
+    catalogJob.run();
+    return { running: true, started: true };
   }
 
   // Без q – хотелите с връзки за проверка; с q – търсене в целия каталог (за поправки)
