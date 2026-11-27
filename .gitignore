@@ -1,0 +1,7 @@
+.env
+node_modules/
+logs/
+data/*.json
+data/contracts/
+!data/seed/
+*.log
