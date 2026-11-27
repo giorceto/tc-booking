@@ -71,4 +71,31 @@ function parseCookies(req) {
   return out;
 }
 
-module.exports = { HttpError, MAX_BODY, sendJson, readJson, clientIp, isHttps, parseCookies };
+// Най-много `max` заявки за `windowMs` от един ключ (IP). hit() връща 0 или след колко ms може пак.
+class RateLimit {
+  constructor(max, windowMs) {
+    this.max = max;
+    this.windowMs = windowMs;
+    this.hits = new Map(); // ключ -> [времена]
+    setInterval(() => this.cleanup(), Math.max(windowMs, 60000)).unref();
+  }
+
+  hit(key) {
+    const now = Date.now();
+    const list = (this.hits.get(key) || []).filter((t) => now - t < this.windowMs);
+    if (list.length >= this.max) {
+      this.hits.set(key, list);
+      return this.windowMs - (now - list[0]);
+    }
+    list.push(now);
+    this.hits.set(key, list);
+    return 0;
+  }
+
+  cleanup() {
+    const now = Date.now();
+    for (const [k, list] of this.hits) if (!list.some((t) => now - t < this.windowMs)) this.hits.delete(k);
+  }
+}
+
+module.exports = { HttpError, MAX_BODY, sendJson, readJson, clientIp, isHttps, parseCookies, RateLimit };

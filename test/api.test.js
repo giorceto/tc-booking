@@ -90,7 +90,8 @@ function world() {
 }
 
 async function start(w, opts = {}) {
-  const server = createServer({ engine: w.engine, catalog: w.catalog, bookings: w.bookings, log: w.log, streamThrottleMs: 0, ...opts });
+  const high = [1000, 60000];
+  const server = createServer({ engine: w.engine, catalog: w.catalog, bookings: w.bookings, log: w.log, streamThrottleMs: 0, limits: { catalog: high, search: high, recheck: high, booking: high }, ...opts });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const api = async (p, { method = 'GET', body, headers = {} } = {}) => {
@@ -108,6 +109,7 @@ async function start(w, opts = {}) {
     }
     return { status: r.status, headers: r.headers, text, json };
   };
+  api.base = base;
   w.close = () => {
     server.closeAllConnections();
     return new Promise((r) => server.close(r));
@@ -379,4 +381,30 @@ test('от сайта до админа: клиентът резервира, с
 
   // публичното API не пуска към админа
   assert.strictEqual((await api('/admin/api/bookings')).status, 401);
+});
+
+test('лимит на заявките по IP (зад Caddy – по X-Forwarded-For)', async (t) => {
+  const w = world();
+  const api = await start(w, { limits: { search: [2, 60000], catalog: [1000, 60000], recheck: [1000, 60000], booking: [1000, 60000] } });
+  t.after(() => w.close());
+  const q = (ip) => api(`/api/search?hotel=H1&date=${DATE}`, { headers: { 'X-Forwarded-For': ip } });
+  assert.strictEqual((await q('1.1.1.1')).status, 200);
+  assert.strictEqual((await q('1.1.1.1')).status, 200);
+  const r = await q('1.1.1.1');
+  assert.strictEqual(r.status, 429);
+  assert.ok(Number(r.headers.get('retry-after')) > 0);
+  assert.strictEqual((await q('2.2.2.2')).status, 200, 'друг клиент не е засегнат');
+  assert.strictEqual((await q('evil, 2.2.2.2')).status, 200, 'подправеното начало на X-Forwarded-For не се брои');
+  assert.strictEqual((await api('/api/health', { headers: { 'X-Forwarded-For': '1.1.1.1' } })).status, 200, 'health е без лимит');
+});
+
+test('началото води към админа (относително – за префикса /book)', async (t) => {
+  const { Users } = require('../src/auth');
+  const { createAdmin } = require('../src/admin/routes');
+  const w = world();
+  const api = await start(w, { admin: createAdmin({ bookings: w.bookings, users: new Users(path.join(w.dir, 'u.json')), log: w.log }) });
+  t.after(() => w.close());
+  const r = await fetch(api.base + '/', { redirect: 'manual' });
+  assert.strictEqual(r.status, 302);
+  assert.strictEqual(r.headers.get('location'), 'admin/');
 });

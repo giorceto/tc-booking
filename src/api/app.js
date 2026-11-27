@@ -12,13 +12,23 @@
 // код на хотела при него, нетна цена или грешките по доставчици. Те отиват само в лога.
 const http = require('http');
 const { parseSearch, parseBooking } = require('./params');
-const { HttpError, sendJson, readJson } = require('./http');
+const { HttpError, sendJson, readJson, clientIp, RateLimit } = require('./http');
 
 const DUPLICATE_MS = 10 * 60 * 1000; // повторно изпратена резервация (двоен клик) в този срок връща същата
 
+// Лимит на заявките от едно IP – API-то е публично, а лимитът на Summer Tour е общ с TC Prices.
+// [брой, за колко ms]
+const LIMITS = {
+  catalog: [120, 60000],
+  search: [20, 60000],
+  recheck: [20, 60000],
+  booking: [5, 10 * 60000],
+};
+
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
-function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000 }) {
+function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
   const allowed = new Set(String(corsOrigin).split(',').map((s) => s.trim()).filter(Boolean));
+  const limiters = Object.fromEntries(Object.entries({ ...LIMITS, ...limits }).map(([k, [max, ms]]) => [k, new RateLimit(max, ms)]));
 
   // Хотел, който може да се търси: има връзка към поне един активен доставчик
   const searchable = (h) => engine.activeOps().some((op) => h.links[op]);
@@ -26,11 +36,11 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
 
   const routes = [
     ['GET', /^\/api\/health$/, () => ({ ok: true })],
-    ['GET', /^\/api\/areas$/, areas],
-    ['GET', /^\/api\/hotels$/, hotels],
-    ['GET', /^\/api\/search$/, search],
-    ['POST', /^\/api\/offer\/([A-Za-z0-9_-]{8,64})\/recheck$/, recheck],
-    ['POST', /^\/api\/booking$/, booking],
+    ['GET', /^\/api\/areas$/, areas, 'catalog'],
+    ['GET', /^\/api\/hotels$/, hotels, 'catalog'],
+    ['GET', /^\/api\/search$/, search, 'search'],
+    ['POST', /^\/api\/offer\/([A-Za-z0-9_-]{8,64})\/recheck$/, recheck, 'recheck'],
+    ['POST', /^\/api\/booking$/, booking, 'booking'],
   ];
 
   async function handler(req, res) {
@@ -38,16 +48,26 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
     if (admin && (url.pathname === '/admin' || url.pathname.startsWith('/admin/'))) return admin(req, res, url);
+    if (admin && url.pathname === '/' && req.method === 'GET') {
+      // засега няма клиентска страница – началото води към админа (относително, за префикса на Caddy)
+      res.writeHead(302, { Location: 'admin/' }).end();
+      return;
+    }
     setCorsHeaders(req, res); // CORS само за API-то на сайта, никога за админа
     if (req.method === 'OPTIONS') {
       res.writeHead(204).end();
       return;
     }
     try {
-      for (const [method, re, fn] of routes) {
+      for (const [method, re, fn, limit] of routes) {
         const m = url.pathname.match(re);
         if (!m) continue;
         if (req.method !== method) throw new HttpError(405, 'Методът не е разрешен');
+        const wait = limit ? limiters[limit].hit(clientIp(req)) : 0;
+        if (wait) {
+          res.setHeader('Retry-After', String(Math.ceil(wait / 1000)));
+          throw new HttpError(429, 'Твърде много заявки. Опитайте отново след малко.');
+        }
         const out = await fn({ req, res, url, query: Object.fromEntries(url.searchParams), match: m });
         if (out !== undefined) sendJson(res, out.status || 200, out.body !== undefined ? out.body : out);
         return;

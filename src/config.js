@@ -46,7 +46,7 @@ function operators() {
 
 module.exports = {
   ROOT,
-  PORT: Number(env.PORT || 3000),
+  PORT: Number(env.PORT || 3100), // 3000 е на TC Prices
   // На сървъра приложението е зад Caddy, затова слуша само локално
   HOST: env.HOST || '127.0.0.1',
   // От кой адрес (сайта) може да се вика API-то от браузъра, напр. https://www.tours-club.com; празно = само от същия адрес

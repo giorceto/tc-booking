@@ -46,12 +46,4 @@ node src/auth.js remove ana       # излиза веднага, без рест
 
 ## Caddy
 
-Страницата ползва само относителни адреси, така че работи и с префикс. Пример: блок в съществуващия `busrent.eu { … }` (виж [lessons-learned.md](lessons-learned.md): **добавя се**, не се пише целият Caddyfile отначало):
-
-```
-handle_path /booking/* {
-    reverse_proxy 127.0.0.1:3000
-}
-```
-
-Тогава адресът е `https://busrent.eu/booking/admin/`. Ако админът трябва да е достъпен само от офиса, в Caddy може да се ограничи по IP с `@office remote_ip …`.
+Страницата ползва само относителни адреси, така че работи и с префикс. На busrent.eu е `https://busrent.eu/book/admin/`. `deploy/install.sh` добавя блока сам (виж [deploy.md](deploy.md)). Ако админът трябва да е достъпен само от офиса, в Caddy може да се ограничи по IP с `@office remote_ip …`.

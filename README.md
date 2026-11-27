@@ -54,6 +54,8 @@ src/
   export/
     pricexml.js          договор Summer Tour → XML (формат IRE-SEAMAR)
     contracts.js         имена на договорите: S27 окончателен, C27/R27 roll-over
+deploy/
+  install.sh             качване/обновяване на сървъра (systemd + блок в Caddy), виж docs/deploy.md
 scripts/
   selftest.js            проверка на входа при всички оператори
   search.js              пробно търсене от командния ред
@@ -69,7 +71,7 @@ cp .env.example .env      # попълнете USER/PASS – .env не се ка
 npm test                  # тестове без мрежа
 npm run selftest          # вход при всички оператори
 node src/auth.js add ana  # служител за админа (пита за паролата)
-npm start                 # API: http://127.0.0.1:3000/api/health, админ: http://127.0.0.1:3000/admin/
+npm start                 # API: http://127.0.0.1:3100/api/health, админ: http://127.0.0.1:3100/admin/
 node scripts/search.js hotel H1 2027-06-15 7 2
 node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal показва и доставчика
 ```
@@ -90,4 +92,5 @@ node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal пок
 | [docs/booking-architecture.md](docs/booking-architecture.md) | предложение за резервационната система |
 | [docs/api.md](docs/api.md) | Booking API за сайта – адреси, параметри, отговори, грешки |
 | [docs/admin.md](docs/admin.md) | админ – потребители, работа с резервация, сигурност, Caddy |
+| [docs/deploy.md](docs/deploy.md) | качване на busrent.eu/book (`deploy/install.sh`) |
 | [docs/lessons-learned.md](docs/lessons-learned.md) | капани и грешки, които вече сме минали |
