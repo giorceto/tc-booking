@@ -6,7 +6,7 @@ TC Booking върви на същия Contabo VPS (busrent.eu) като TC Price
 |---|---|
 | `https://busrent.eu/book/admin/` | админ за служителите |
 | `https://busrent.eu/book/api/…` | API за сайта ([api.md](api.md)) |
-| `https://busrent.eu/book/` | засега пренасочва към админа |
+| `https://busrent.eu/book/` | търсене и резервация за клиенти (`src/site`) |
 
 ## Първо качване
 

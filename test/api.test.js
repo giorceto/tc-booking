@@ -398,13 +398,20 @@ test('лимит на заявките по IP (зад Caddy – по X-Forwarde
   assert.strictEqual((await api('/api/health', { headers: { 'X-Forwarded-For': '1.1.1.1' } })).status, 200, 'health е без лимит');
 });
 
-test('началото води към админа (относително – за префикса /book)', async (t) => {
-  const { Users } = require('../src/auth');
-  const { createAdmin } = require('../src/admin/routes');
+test('страницата за търсене: относителни адреси, CSP, нищо за доставчиците', async (t) => {
   const w = world();
-  const api = await start(w, { admin: createAdmin({ bookings: w.bookings, users: new Users(path.join(w.dir, 'u.json')), log: w.log }) });
+  const api = await start(w);
   t.after(() => w.close());
-  const r = await fetch(api.base + '/', { redirect: 'manual' });
-  assert.strictEqual(r.status, 302);
-  assert.strictEqual(r.headers.get('location'), 'admin/');
+  const r = await api('/');
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-type'), /text\/html/);
+  assert.match(r.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.ok(!/(src|href)="\//.test(r.text), 'само относителни адреси – работи под /book/');
+  const js = await api('/site.js');
+  assert.match(js.headers.get('content-type'), /javascript/);
+  assert.ok(!/fetch\(['"`]\//.test(js.text), 'fetch само с относителни адреси');
+  assert.ok(!/innerHTML/.test(js.text), 'данните се слагат само като текст');
+  assert.strictEqual((await api('/site.css')).status, 200);
+  const files = [r.text, js.text, (await api('/site.css')).text].join('\n');
+  for (const x of ['SUMMER', 'Summer', 'ANEA', 'Anea', 'IRELS', 'Irels', 'SONAR', 'Sonar', 'AKAY', 'Akay', 'PENINSULA', 'Peninsula', 'admin/']) assert.ok(!files.includes(x), `страницата споменава "${x}"`);
 });

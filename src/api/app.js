@@ -7,12 +7,26 @@
 //        JSON, или SSE при Accept: text/event-stream / &stream=1 (виж docs/api.md)
 //   POST /api/offer/:offerKey/recheck        нова проверка на цената при доставчика
 //   POST /api/booking                        заявка за резервация (статус „за потвърждение“)
+//   GET  /                                   страницата за търсене (src/site/static)
 //
 // Нищо в отговорите към клиента не издава доставчика: няма име/код на доставчика,
 // код на хотела при него, нетна цена или грешките по доставчици. Те отиват само в лога.
+const fs = require('fs');
 const http = require('http');
+const path = require('path');
 const { parseSearch, parseBooking } = require('./params');
 const { HttpError, sendJson, readJson, clientIp, RateLimit } = require('./http');
+
+// Страницата за търсене и резервация: / (busrent.eu/book/), само относителни адреси
+const SITE_DIR = path.join(__dirname, '..', 'site', 'static');
+const SITE = Object.fromEntries(
+  [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
+    .map(([url, f, type]) => [url, { body: fs.readFileSync(path.join(SITE_DIR, f)), type }])
+);
+const SITE_HEADERS = {
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
 
 const DUPLICATE_MS = 10 * 60 * 1000; // повторно изпратена резервация (двоен клик) в този срок връща същата
 
@@ -48,9 +62,11 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
     if (admin && (url.pathname === '/admin' || url.pathname.startsWith('/admin/'))) return admin(req, res, url);
-    if (admin && url.pathname === '/' && req.method === 'GET') {
-      // засега няма клиентска страница – началото води към админа (относително, за префикса на Caddy)
-      res.writeHead(302, { Location: 'admin/' }).end();
+    const page = SITE[url.pathname];
+    if (page && (req.method === 'GET' || req.method === 'HEAD')) {
+      // страницата за търсене (src/site/static) – за клиенти, без нищо от доставчиците
+      res.writeHead(200, { 'Content-Type': page.type, 'Content-Length': page.body.length, ...SITE_HEADERS });
+      res.end(req.method === 'HEAD' ? undefined : page.body);
       return;
     }
     setCorsHeaders(req, res); // CORS само за API-то на сайта, никога за админа

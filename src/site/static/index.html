@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Хотели в Турция · Tours Club</title>
+<link rel="stylesheet" href="site.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap"><span class="brand">Tours Club</span><span class="tag">Хотели в Турция</span></div>
+</header>
+
+<main class="wrap">
+  <form id="search" class="search" autocomplete="off" novalidate>
+    <div class="field where">
+      <label for="where">Курорт или хотел</label>
+      <input id="where" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest" placeholder="напр. Сиде или Crystal" spellcheck="false">
+      <ul id="suggest" class="suggest" role="listbox" aria-label="Предложения" hidden></ul>
+    </div>
+    <div class="field"><label for="date">Настаняване</label><input id="date" type="date"></div>
+    <div class="field narrow"><label for="nights">Нощувки</label><select id="nights"></select></div>
+    <div class="field narrow"><label for="adults">Възрастни</label><select id="adults"></select></div>
+    <div class="field narrow"><label for="children">Деца</label><select id="children"></select></div>
+    <button type="submit" class="primary go">Търси</button>
+    <div class="field ages" id="ages" hidden></div>
+  </form>
+  <p id="form-error" class="form-error" role="alert"></p>
+
+  <section id="status" class="status" aria-live="polite"></section>
+  <div id="filters" class="filters" hidden></div>
+  <section id="results" class="results"></section>
+  <div id="more" class="more"></div>
+</main>
+
+<dialog id="book" class="book" aria-labelledby="book-title"></dialog>
+
+<footer class="wrap foot">
+  Цените са за целия престой в една стая, с включено ранно записване. Заявката не е плащане – ще се свържем с вас за потвърждение.
+</footer>
+</body>
+</html>
