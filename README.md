@@ -7,7 +7,8 @@
 - документация на API-тата;
 - работещите модули за връзка;
 - каталога с вързаните хотели;
-- нов модул за търсене, който крие доставчика.
+- нов модул за търсене, който крие доставчика;
+- Booking API за сайта: търсене (и стрийминг), проверка на цената, заявка за резервация.
 
 ## Доставчици
 
@@ -37,7 +38,13 @@ src/
     catalog.js           общ каталог: наш хотел ↔ код при всеки оператор
     normalize.js         имена, курорти, изхранване, стаи, звезди
   engine/
-    search.js            търсене по хотел/курорт, най-добра цена, скрит доставчик
+    search.js            търсене по хотел/курорт, най-добра цена, скрит доставчик, recheck()
+  api/
+    app.js               Booking API (node:http): /api/search (SSE), /api/offer/:key/recheck, /api/booking
+    params.js            проверка на входа от сайта
+  bookings/
+    store.js             резервации в data/bookings.json (за потвърждение -> потвърдена/отказана)
+  server.js              npm start
   export/
     pricexml.js          договор Summer Tour → XML (формат IRE-SEAMAR)
     contracts.js         имена на договорите: S27 окончателен, C27/R27 roll-over
@@ -55,6 +62,7 @@ docs/                    документация
 cp .env.example .env      # попълнете USER/PASS – .env не се качва в git
 npm test                  # тестове без мрежа
 npm run selftest          # вход при всички оператори
+npm start                 # Booking API на http://127.0.0.1:3000/api/health
 node scripts/search.js hotel H1 2027-06-15 7 2
 node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal показва и доставчика
 ```
@@ -73,4 +81,5 @@ node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal пок
 | [docs/hotel-catalog.md](docs/hotel-catalog.md) | как връзваме един хотел при всички оператори |
 | [docs/pricing-rules.md](docs/pricing-rules.md) | какво е цената, EB, деца, наличност, избор на най-добра |
 | [docs/booking-architecture.md](docs/booking-architecture.md) | предложение за резервационната система |
+| [docs/api.md](docs/api.md) | Booking API за сайта – адреси, параметри, отговори, грешки |
 | [docs/lessons-learned.md](docs/lessons-learned.md) | капани и грешки, които вече сме минали |

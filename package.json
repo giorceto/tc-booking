@@ -5,6 +5,7 @@
   "description": "Tours Club – вътрешна система за хотелски резервации в Турция: търсене в реално време при турските incoming оператори и най-добра цена.",
   "engines": { "node": ">=20" },
   "scripts": {
+    "start": "node src/server.js",
     "selftest": "node scripts/selftest.js",
     "search": "node scripts/search.js",
     "test": "node --test"

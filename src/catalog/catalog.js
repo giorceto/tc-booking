@@ -103,7 +103,8 @@ class Catalog {
     return stats;
   }
 
-  search(q, limit = 30) {
+  // codes: false – без търсене по кода при оператора (за клиентския сайт, за да не се издават кодовете)
+  search(q, limit = 30, { codes: byCode = true } = {}) {
     const s = String(q || '').trim().toUpperCase();
     let list = this.data.hotels;
     if (s) {
@@ -111,7 +112,7 @@ class Catalog {
       list = list
         .map((h) => {
           const names = [h.name, ...Object.values(h.links).map((l) => l.name)];
-          const codes = Object.values(h.links).map((l) => l.code);
+          const codes = byCode ? Object.values(h.links).map((l) => l.code) : [];
           let score = codes.includes(s) ? 2 : names.some((n) => n.toUpperCase().includes(s)) ? 1.5 : Math.max(...names.map((n) => nameScore(f, fingerprint(n))));
           return { h, score };
         })

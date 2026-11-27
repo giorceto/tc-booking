@@ -47,6 +47,10 @@ function operators() {
 module.exports = {
   ROOT,
   PORT: Number(env.PORT || 3000),
+  // На сървъра приложението е зад Caddy, затова слуша само локално
+  HOST: env.HOST || '127.0.0.1',
+  // От кой адрес (сайта) може да се вика API-то от браузъра, напр. https://www.tours-club.com; празно = само от същия адрес
+  CORS_ORIGIN: env.CORS_ORIGIN || '',
   // Надценка върху нетната цена на доставчика (%), докато няма правила по хотел/сезон
   MARKUP_PCT: Number(env.MARKUP_PCT || 0),
   // Колко минути пазим резултат от търсене при доставчик

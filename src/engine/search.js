@@ -27,7 +27,11 @@ class SearchEngine {
     this.dataDir = dataDir || path.join(__dirname, '..', '..', 'data');
     this.isActive = isActive;
     this.cache = new Map(); // ключ -> { at, offers }
+    this.inflight = new Map(); // ключ -> Promise – еднакви заявки, пуснати едновременно, отиват като една
     this.offers = new Map(); // offerKey -> { at, op, hotelCode, offer, params }
+    // Тайна за offerKey: ключът е стабилен за една и съща оферта (важи и при стрийминг на части),
+    // но не може да се отгатне отвън. Сменя се при рестарт – тогава и офертите в паметта се губят.
+    this.keySecret = crypto.randomBytes(32);
     this.regionCache = new Map();
     setInterval(() => this.cleanup(), 5 * 60000).unref();
   }
@@ -137,12 +141,18 @@ class SearchEngine {
     return { params, count: hotels.length, hotels, unlinked };
   }
 
+  // Офертата, каквато я вижда клиентът; запомня offerKey -> вътрешни данни (за resolveOffer)
   publicOffer(h, o, params) {
-    const offerKey = crypto.randomBytes(9).toString('base64url');
-    this.offers.set(offerKey, { at: Date.now(), op: o.op, hotelId: h.id, hotelCode: o.hotelCode, offer: o, params });
+    const view = this.publicView(o, params);
+    this.offers.set(view.offerKey, { at: Date.now(), op: o.op, hotelId: h.id, hotelCode: o.hotelCode, offer: o, params });
+    return view;
+  }
+
+  // Само изгледът за клиента, без да се записва нищо
+  publicView(o, params) {
     const bg = boardGroup(o.board, o.boardName);
     return {
-      offerKey,
+      offerKey: this.offerKey(o, params),
       room: cleanRoom(o.room || o.roomType),
       roomGroup: roomGroup(o.room, o.roomType),
       seaView: seaView(o.room, o.roomType, o.roomTypeCode),
@@ -157,9 +167,16 @@ class SearchEngine {
     };
   }
 
-  // Продажна цена: нетна + надценка, закръглена нагоре до цяло евро
+  // Продажна цена: нетна + надценка, закръглена нагоре до цяло евро.
+  // Първо до центове – иначе 1400 × 1.1 = 1540.0000000000002 и Math.ceil дава 1541.
   sellPrice(net) {
-    return Math.ceil(net * (1 + this.markupPct / 100));
+    return Math.ceil(Math.round(net * (1 + this.markupPct / 100) * 100) / 100);
+  }
+
+  // Стабилен ключ за офертата: еднаква оферта (доставчик, хотел, стая, изхранване, дати, хора) -> еднакъв ключ
+  offerKey(o, params) {
+    const id = [offerIdentity(o), params.date, params.nights, params.adults, (params.childAges || []).join('-')].join('|');
+    return crypto.createHmac('sha256', this.keySecret).update(id).digest('base64url').slice(0, 16);
   }
 
   // Само за сървъра (резервация / админ): кой доставчик и кой код стоят зад офертата
@@ -169,15 +186,55 @@ class SearchEngine {
     return x;
   }
 
+  // Проверява цената наново при същия доставчик, без кеш (преди резервация/плащане).
+  // Връща { found:false, reason } или { found:true, entry, offer, net, price, previousPrice, available, status }.
+  // reason: 'expired' – ключът е изтекъл/непознат; 'supplier' – доставчикът е изключен; 'gone' – офертата я няма вече.
+  // Грешка от доставчика (timeout и др.) се хвърля нагоре.
+  async recheck(offerKey) {
+    const x = this.resolveOffer(offerKey);
+    if (!x) return { found: false, reason: 'expired' };
+    const c = this.suppliers[x.op];
+    if (!c || !this.isActive(x.op)) return { found: false, reason: 'supplier' };
+    // Sedna търси по числово HotelId – ако го имаме от офертата, не теглим списъка с хотели
+    const hotel = c.type === 'sedna' && x.offer.hotelId ? x.offer.hotelId : x.hotelCode;
+    const { date, nights, adults, childAges = [] } = x.params;
+    const { offers } = await c.search({ hotel, date, nights, adults, childAges });
+    const id = offerIdentity(x.offer);
+    let best = null;
+    for (const o of offers) {
+      const oo = { ...o, op: x.op };
+      if (oo.total > 0 && offerIdentity(oo) === id && (!best || better(oo, best))) best = oo;
+    }
+    if (!best) return { found: false, reason: 'gone', entry: x };
+    const previousPrice = this.sellPrice(x.offer.total);
+    // офертата в паметта става новата – резервацията след проверката ползва точно нея
+    Object.assign(x, { at: Date.now(), offer: best, checkedAt: new Date().toISOString() });
+    return {
+      found: true,
+      entry: x,
+      offer: best,
+      net: best.total,
+      price: this.sellPrice(best.total),
+      previousPrice,
+      available: best.status === 'OK',
+      status: best.status,
+    };
+  }
+
   // ---------- помощни ----------
   async cached(parts, force, fn) {
     const [kind, op, code, p] = parts;
     const key = [kind, op, code, p.date, p.nights, p.adults, (p.childAges || []).join('-')].join('|');
     const hit = this.cache.get(key);
     if (!force && hit && Date.now() - hit.at < this.cacheMs) return hit.offers;
-    const offers = await fn();
-    this.cache.set(key, { at: Date.now(), offers });
-    return offers;
+    if (this.inflight.has(key)) return this.inflight.get(key);
+    const p2 = (async () => {
+      const offers = await fn();
+      this.cache.set(key, { at: Date.now(), offers });
+      return offers;
+    })().finally(() => this.inflight.delete(key));
+    this.inflight.set(key, p2);
+    return p2;
   }
 
   async regions(op) {
@@ -201,6 +258,11 @@ class SearchEngine {
     for (const [k, v] of this.cache) if (now - v.at > this.cacheMs) this.cache.delete(k);
     for (const [k, v] of this.offers) if (now - v.at > OFFER_TTL_MS) this.offers.delete(k);
   }
+}
+
+// Коя е офертата: доставчик + хотел + стая + изхранване (без цена и наличност – те се менят)
+function offerIdentity(o) {
+  return [o.op, o.hotelCode, o.roomCode, o.roomTypeCode, o.board, o.room].map((x) => (x == null ? '' : String(x))).join('|');
 }
 
 // Налична оферта бие "по запитване"; при равни – по-евтината

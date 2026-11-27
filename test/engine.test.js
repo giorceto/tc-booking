@@ -45,3 +45,11 @@ test('грешка при един доставчик не спира търсе
   assert.strictEqual(r.count, 1);
   assert.strictEqual(r.errors.AAA, 'down');
 });
+
+test('продажна цена: надценка без грешки от закръгляне', () => {
+  const e = setup(); // надценка 10%
+  assert.strictEqual(e.sellPrice(1400), 1540); // 1400 × 1.1 = 1540.0000000000002 в JS
+  assert.strictEqual(e.sellPrice(1100), 1210);
+  assert.strictEqual(e.sellPrice(1234.56), 1359); // 1358.016 -> нагоре
+  assert.strictEqual(e.sellPrice(1000.01), 1101); // 1100.011 -> нагоре
+});
