@@ -191,7 +191,7 @@ test('търсене със стрийминг (SSE): части по хотел
   const w = world();
   const api = await start(w);
   t.after(() => w.close());
-  w.s.bbbDelayMs = 40; // BBB отговаря по-късно – H1 трябва да дойде два пъти (първо от AAA, после по-евтино от BBB)
+  w.s.bbbDelayMs = 200; // BBB отговаря по-късно – H1 трябва да дойде два пъти (първо от AAA, после по-евтино от BBB)
 
   const r = await api(`/api/search?area=SIDE&date=${DATE}&nights=7&adults=2&stream=1`);
   assert.match(r.headers.get('content-type'), /text\/event-stream/);

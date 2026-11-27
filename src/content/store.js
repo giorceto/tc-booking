@@ -118,7 +118,17 @@ class ContentStore {
   }
 
   // Връзва хотелите от сайта с каталога. Ръчните решения (ok, blocked) не се пипат.
-  match(catalog) {
+  // affected – само за тези хотели от каталога (след действие в админа): наново се връзват страниците,
+  // които сочат към тях, и несигурните/невързаните; останалите пазят връзките си (иначе е ~4 сек)
+  match(catalog, { affected } = {}) {
+    // каталогът е сменен (напр. хотел е отделен) – връзки към несъществуващ хотел се махат
+    for (const [sid, l] of Object.entries(this.data.links)) if (!catalog.get(l.hotelId)) delete this.data.links[sid];
+    const only = affected
+      ? new Set(Object.values(this.data.site).map((x) => x.siteId).filter((sid) => {
+          const l = this.data.links[sid];
+          return !l || l.state === 'check' || affected.includes(l.hotelId);
+        }))
+      : null;
     // имената от непроверени връзки в каталога (state 'check') дават най-много „за проверка“ –
     // иначе грешка в каталога става „сигурна“ връзка и тук
     const fp = new Map(
@@ -130,10 +140,13 @@ class ContentStore {
     const blocked = new Set(this.data.blocked);
     const stats = { auto: 0, check: 0, none: 0, ok: 0 };
     const taken = new Map(); // H -> siteId с най-висок резултат (един хотел от каталога – един от сайта)
-    for (const [siteId, l] of Object.entries(this.data.links)) if (l.state === 'ok') taken.set(l.hotelId, { siteId, score: 2 });
+    for (const [siteId, l] of Object.entries(this.data.links)) {
+      if (l.state === 'ok' || (only && !only.has(siteId) && l.state === 'auto')) taken.set(l.hotelId, { siteId, score: 2 });
+    }
 
     const found = [];
     for (const s of Object.values(this.data.site)) {
+      if (only && !only.has(s.siteId)) continue;
       const cur = this.data.links[s.siteId];
       if (cur && cur.state === 'ok') {
         stats.ok++;

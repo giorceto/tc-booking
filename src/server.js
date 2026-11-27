@@ -11,11 +11,17 @@ const { createServer } = require('./api/app');
 const { createAdmin } = require('./admin/routes');
 const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
-const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL } = require('./config');
+const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL, operators } = require('./config');
 
-const dataFile = path.join(ROOT, 'data', 'catalog.json');
-const catalogFile = fs.existsSync(dataFile) ? dataFile : path.join(ROOT, 'data', 'seed', 'catalog.json');
+// Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
+const catalogFile = path.join(ROOT, 'data', 'catalog.json');
+if (!fs.existsSync(catalogFile)) {
+  fs.mkdirSync(path.dirname(catalogFile), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'data', 'seed', 'catalog.json'), catalogFile);
+}
 const catalog = new Catalog(catalogFile);
+// автоматични връзки, станали през непроверено име – за проверка, докато човек не ги прегледа
+const chains = catalog.markChains();
 const suppliers = createSuppliers();
 const engine = new SearchEngine({ catalog, suppliers, markupPct: MARKUP_PCT, cacheMin: CACHE_MIN });
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
@@ -29,12 +35,14 @@ const log = {
 };
 
 const users = new Users(path.join(ROOT, 'data', 'users.json'));
-const admin = createAdmin({ bookings, users, content, catalog, siteUrl: SITE_URL, log });
+const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
+const admin = createAdmin({ bookings, users, content, catalog, opNames, siteUrl: SITE_URL, log });
 
 const server = createServer({ engine, catalog, bookings, admin, content, siteUrl: SITE_URL, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
-  log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела)`);
+  log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела, ${catalog.review().length} връзки за проверка – не се ползват за цени)`);
+  if (chains) log.info(`  каталог: ${chains} верижни връзки станаха „за проверка“ (админ → Каталог)`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
   log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
   const cc = content.counts();

@@ -53,3 +53,14 @@ test('продажна цена: надценка без грешки от за�
   assert.strictEqual(e.sellPrice(1234.56), 1359); // 1358.016 -> нагоре
   assert.strictEqual(e.sellPrice(1000.01), 1101); // 1100.011 -> нагоре
 });
+
+test('непроверени връзки (check) не дават цени, докато не се потвърдят', async () => {
+  const e = setup();
+  e.catalog.get('H1').links.BBB.state = 'check'; // BBB е по-евтиният – ако е друг хотел, цената е грешна
+  const p = { date: '2027-06-15', nights: 7, adults: 2, childAges: [] };
+  let r = await e.searchHotel('H1', p);
+  assert.strictEqual(r.hotels[0].options.find((o) => o.roomGroup === 'Стандартна').price, 1320, 'само AAA: 1200 + 10%');
+  e.catalog.get('H1').links.BBB.state = 'ok';
+  r = await e.searchHotel('H1', p, { force: true });
+  assert.strictEqual(r.hotels[0].options.find((o) => o.roomGroup === 'Стандартна').price, 1210);
+});

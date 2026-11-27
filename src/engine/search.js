@@ -18,8 +18,10 @@ class SearchEngine {
    * @param {number} [o.cacheMin]                      кеш на търсенията при доставчика (мин.)
    * @param {string} [o.dataDir]                       папка с hotels-OP.json (за търсене по курорт при Sedna)
    * @param {(op:string)=>boolean} [o.isActive]        изключване на доставчик без рестарт
+   * @param {boolean} [o.useUnverified]                ползва и непроверените връзки от каталога (state 'check') – по подразбиране не
    */
-  constructor({ catalog, suppliers, markupPct = 0, cacheMin = 15, dataDir, isActive = () => true }) {
+  constructor({ catalog, suppliers, markupPct = 0, cacheMin = 15, dataDir, isActive = () => true, useUnverified = false }) {
+    this.useUnverified = useUnverified;
     this.catalog = catalog;
     this.suppliers = suppliers;
     this.markupPct = markupPct;
@@ -36,6 +38,12 @@ class SearchEngine {
     setInterval(() => this.cleanup(), 5 * 60000).unref();
   }
 
+  // Връзката от каталога може да се ползва за цени: непроверените (check) – не, докато човек не ги потвърди.
+  // Грешна връзка = цена на друг хотел на сайта (виж docs/hotel-catalog.md).
+  trusted(link) {
+    return Boolean(link) && (this.useUnverified || link.state !== 'check');
+  }
+
   activeOps() {
     return Object.keys(this.suppliers).filter((op) => this.isActive(op));
   }
@@ -49,7 +57,7 @@ class SearchEngine {
     const errors = {};
     await Promise.all(
       Object.entries(h.links)
-        .filter(([op]) => this.suppliers[op] && this.isActive(op))
+        .filter(([op, link]) => this.suppliers[op] && this.isActive(op) && this.trusted(link))
         .map(async ([op, link]) => {
           try {
             const list = await this.cached(['H', op, link.code, params], force, async () => (await this.suppliers[op].search({ ...params, hotel: link.code })).offers);
@@ -114,6 +122,10 @@ class SearchEngine {
       const h = this.catalog.byLink.get(`${o.op}:${o.hotelCode}`);
       if (!h) {
         unlinked++; // хотел, който още не е в каталога – не го показваме (няма описание/снимки и издава кода на доставчика)
+        continue;
+      }
+      if (!this.trusted(h.links[o.op])) {
+        unlinked++; // непроверена връзка – може да е друг хотел
         continue;
       }
       if (o.total == null || !(o.total > 0)) continue;

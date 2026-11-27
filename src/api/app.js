@@ -54,7 +54,7 @@ function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', co
   const limiters = Object.fromEntries(Object.entries({ ...LIMITS, ...limits }).map(([k, [max, ms]]) => [k, new RateLimit(max, ms)]));
 
   // Хотел, който може да се търси: има връзка към поне един активен доставчик
-  const searchable = (h) => engine.activeOps().some((op) => h.links[op]);
+  const searchable = (h) => engine.activeOps().some((op) => engine.trusted(h.links[op]));
   const publicHotel = (h) => ({ hotelId: h.id, name: h.name, area: h.area, stars: h.stars || null });
 
   const routes = [

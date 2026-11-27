@@ -42,8 +42,10 @@ class Catalog {
     const stats = {};
     const ops = Object.keys(lists).sort((a, b) => lists[b].length - lists[a].length);
     const fp = new Map(); // кеш на отпечатъците на каталога
+    // имената от непроверени връзки (check) дават най-много „за проверка“ – иначе следващият оператор
+    // се връзва „автоматично“ към грешно име и грешката става верига (виж markChains)
     const fpOf = (h) => {
-      if (!fp.has(h.id)) fp.set(h.id, [fingerprint(h.name), ...Object.values(h.links).map((l) => fingerprint(l.name))]);
+      if (!fp.has(h.id)) fp.set(h.id, [{ f: fingerprint(h.name), max: 1 }, ...Object.values(h.links).map((l) => ({ f: fingerprint(l.name), max: l.state === 'check' ? AUTO - 0.01 : 1 }))]);
       return fp.get(h.id);
     };
 
@@ -66,7 +68,7 @@ class Catalog {
         for (const h of this.data.hotels) {
           if (h.links[op]) continue; // вече има хотел от този оператор
           if (this.blocked.has(`${op}:${oh.code}|${h.id}`)) continue;
-          let s = Math.max(...fpOf(h).map((x) => nameScore(f, x)));
+          let s = Math.max(...fpOf(h).map((x) => Math.min(x.max, nameScore(f, x.f))));
           if (s < CHECK - 0.1) continue;
           // еднакъв код при друг оператор (често при Sejour) – плюс
           if (Object.values(h.links).some((l) => l.code === oh.code)) s = Math.min(1, s + 0.08);
@@ -137,8 +139,107 @@ class Catalog {
     const h = this.get(id);
     if (!h || !h.links[op]) throw new Error('Няма такава връзка');
     h.links[op].state = 'ok';
+    delete h.links[op].why;
     this.save();
     return h;
+  }
+
+  // Потвърждава няколко връзки наведнъж (ops празно – всички за проверка)
+  confirmMany(id, ops) {
+    const h = this.get(id);
+    if (!h) throw new Error('Няма такъв хотел');
+    const list = ops && ops.length ? ops : Object.keys(h.links).filter((op) => h.links[op].state === 'check');
+    for (const op of list) {
+      if (!h.links[op]) throw new Error(`Няма връзка към ${op}`);
+      h.links[op].state = 'ok';
+      delete h.links[op].why;
+    }
+    this.save();
+    return h;
+  }
+
+  // Отделя няколко връзки в ЕДИН нов хотел (напр. три оператора с AQI PEGASOS RESORT, слети по грешка с ROYAL)
+  split(id, ops) {
+    const h = this.get(id);
+    if (!h) throw new Error('Няма такъв хотел');
+    if (!ops || !ops.length) throw new Error('Изберете поне една връзка');
+    for (const op of ops) if (!h.links[op]) throw new Error(`Няма връзка към ${op}`);
+    if (ops.length === Object.keys(h.links).length) throw new Error('Всички връзки са избрани – няма какво да остане в хотела');
+    const first = h.links[ops[0]];
+    const n = this.newHotel(first.name, first.area || h.area);
+    for (const op of ops) {
+      const l = h.links[op];
+      delete h.links[op];
+      this.data.blocked.push(`${op}:${l.code}|${h.id}`);
+      const { why, ...rest } = l;
+      n.links[op] = { ...rest, state: 'ok', score: 1 };
+      this.applyCategory(n, l.category);
+    }
+    this.save();
+    return n;
+  }
+
+  // Мести връзки към друг хотел от каталога (напр. ROYAL, вързан по грешка към WORLD -> към AQI PEGASOS ROYAL)
+  move(id, ops, toId) {
+    const h = this.get(id);
+    const to = this.get(toId);
+    if (!h || !to) throw new Error('Няма такъв хотел');
+    if (h === to) throw new Error('Това е същият хотел');
+    if (!ops || !ops.length) throw new Error('Изберете поне една връзка');
+    for (const op of ops) {
+      if (!h.links[op]) throw new Error(`Няма връзка към ${op}`);
+      if (to.links[op]) throw new Error(`${to.id} вече има връзка към ${op} (${to.links[op].name}) – първо я отделете или проверете`);
+    }
+    for (const op of ops) {
+      const { why, ...l } = h.links[op];
+      delete h.links[op];
+      this.data.blocked.push(`${op}:${l.code}|${h.id}`);
+      this.data.blocked = this.data.blocked.filter((b) => b !== `${op}:${l.code}|${to.id}`);
+      to.links[op] = { ...l, state: 'ok', score: 1 };
+    }
+    if (!Object.keys(h.links).length) this.data.hotels = this.data.hotels.filter((x) => x !== h);
+    this.save();
+    return to;
+  }
+
+  // Групата на избраните връзки – действията са за цялата група:
+  //  - верижните, станали през тях (why: chain:<op>);
+  //  - непроверените със същото име при друг оператор (почти сигурно същият хотел)
+  withChain(id, ops) {
+    const h = this.get(id);
+    if (!h) return ops;
+    const set = new Set(ops);
+    const keys = new Set(ops.filter((op) => h.links[op]).map((op) => fingerprint(h.links[op].name).key));
+    for (const [op, l] of Object.entries(h.links)) {
+      if (l.state !== 'check') continue;
+      if ((l.why && l.why.startsWith('chain:') && set.has(l.why.slice(6))) || keys.has(fingerprint(l.name).key)) set.add(op);
+    }
+    return [...set];
+  }
+
+  // Верижни връзки: автоматична (auto) връзка, която прилича само на име от НЕпроверена връзка,
+  // а не на основното име и проверените – става „за проверка“ (why: chain:<оператор>).
+  // Така грешка от една непроверена връзка не стига до търсачката през другите оператори.
+  markChains() {
+    let n = 0;
+    for (const h of this.data.hotels) {
+      const L = Object.entries(h.links);
+      const checks = L.filter(([, l]) => l.state === 'check');
+      if (!checks.length) continue;
+      const trusted = [h.name, ...L.filter(([, l]) => l.state === 'ok').map(([, l]) => l.name)].map(fingerprint);
+      for (const [, l] of L) {
+        if (l.state !== 'auto') continue;
+        const f = fingerprint(l.name);
+        if (Math.max(...trusted.map((t) => nameScore(f, t))) >= AUTO) continue;
+        const via = checks.find(([, k]) => nameScore(f, fingerprint(k.name)) >= AUTO);
+        if (!via) continue;
+        l.state = 'check';
+        l.why = `chain:${via[0]}`;
+        n++;
+      }
+    }
+    if (n) this.save();
+    return n;
   }
 
   // Разкачва хотела на оператора и го прави отделен хотел в каталога

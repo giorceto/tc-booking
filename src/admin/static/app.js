@@ -100,7 +100,7 @@ function header() {
   } }, label);
   return h('header', { class: 'top' },
     h('strong', null, 'TC Booking'),
-    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('content', 'Снимки от сайта')),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта')),
     h('span', { class: 'spacer' }),
     h('span', { class: 'muted' }, state.user),
     h('button', { class: 'link', onclick: logout }, 'Изход'));
@@ -109,6 +109,7 @@ function header() {
 function renderMain() {
   stopRefresh();
   if (state.view === 'content') return renderContentView();
+  if (state.view === 'catalog') return renderCatalogView();
   $tabs = h('nav', { class: 'tabs', 'aria-label': 'Статус' });
   $search = h('input', { type: 'search', placeholder: 'Търсене: номер, име, имейл, хотел…', value: state.q, oninput: debounce(() => {
     state.q = $search.value;
@@ -374,6 +375,113 @@ function picker(s) {
       const r = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
       results.replaceChildren(...(r.hotels.length ? r.hotels.map((x) => h('button', { class: 'pick', onclick: () => contentAction(s.siteId, 'link', { hotelId: x.id }) },
         h('strong', null, x.name), ` ${x.stars ? '★'.repeat(x.stars) : ''} · ${x.area} · ${x.id} · ${x.ops.length} опер.`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел в каталога.')]));
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  }
+  setTimeout(() => {
+    input.focus();
+    find();
+  });
+  return h('div', { class: 'picker' }, input, results);
+}
+
+// ---------- каталог: връзки към операторите ----------
+const kat = { q: '', items: [], counts: {}, total: 0, picker: null }; // picker: 'H:OP' – отворен избор „Премести към…“
+let $klist, $kcount;
+const LINK_STATE = { ok: 'проверена', auto: 'автоматична', check: 'за проверка' };
+
+function renderCatalogView() {
+  $kcount = h('span', { class: 'muted' });
+  const search = h('input', { type: 'search', placeholder: 'Търсене в целия каталог: име, код, H-номер…', value: kat.q, oninput: debounce(() => {
+    kat.q = search.value;
+    loadCatalog();
+  }, 300) });
+  $klist = h('section', { class: 'clist' });
+  $app.replaceChildren(header(),
+    h('div', { class: 'toolbar' }, $kcount, search),
+    h('p', { class: 'muted small hint' },
+      'Връзките „за проверка“ НЕ се ползват за цени, докато не ги потвърдите. Ако операторът продава друг хотел – „Премести към…“ (ако хотелът вече е в каталога) или „Отдели в нов хотел“. ',
+      'Верижните връзки следват връзката, през която са станали.'),
+    $klist);
+  loadCatalog();
+}
+
+async function loadCatalog() {
+  try {
+    const r = await api(`api/catalog/review${kat.q.trim() ? `?q=${encodeURIComponent(kat.q.trim())}` : ''}`);
+    Object.assign(kat, { items: r.items, counts: r.counts, total: r.total });
+    renderCatalog();
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
+}
+
+function renderCatalog() {
+  $kcount.textContent = `За проверка: ${kat.counts.hotels || 0} хотела, ${kat.counts.links || 0} връзки`;
+  if (!kat.items.length) {
+    $klist.replaceChildren(h('p', { class: 'muted empty' }, kat.q ? 'Няма такъв хотел в каталога.' : 'Няма връзки за проверка. 👍'));
+    return;
+  }
+  $klist.replaceChildren(...kat.items.map(catalogCard), ...(kat.total > kat.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${kat.items.length} от ${kat.total}.`)] : []));
+}
+
+function catalogCard(x) {
+  const act = async (action, ops, extra = {}) => {
+    if (action === 'split' && !confirm('Да отделя ли тази връзка (и верижните през нея) в нов хотел?')) return;
+    try {
+      const r = await api(`api/catalog/${x.id}/${action}`, { ops, ...extra });
+      toast(action === 'split' ? `Отделено в нов хотел ${r.newId}: ${r.other.name}` : action === 'move' ? `Преместено към ${r.toId}: ${r.other.name}` : `Потвърдено (${r.ops.length})`);
+      kat.picker = null;
+      loadCatalog(); // списъкът и броячите – наново от сървъра (прегледаният хотел изчезва от „за проверка“)
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  };
+  const opName = (op) => x.links.find((y) => y.op === op)?.opName || op;
+  const rows = x.links.map((l) => {
+    const followers = x.links.filter((y) => y.with === l.op).map((y) => y.opName);
+    const isPicker = kat.picker === `${x.id}:${l.op}`;
+    const buttons = l.leader
+      ? h('div', { class: 'kbtns' },
+          h('button', { class: 'primary', onclick: () => act('confirm', [l.op]) }, 'Потвърди'),
+          h('button', { onclick: () => { kat.picker = isPicker ? null : `${x.id}:${l.op}`; renderCatalog(); } }, 'Премести към…'),
+          h('button', { class: 'warn', onclick: () => act('split', [l.op]) }, 'Отдели в нов хотел'))
+      : null;
+    return [
+      h('tr', { class: l.state === 'check' ? 'kcheck' : '' },
+        h('td', null, h('strong', null, l.opName), h('div', { class: 'muted small mono' }, l.code)),
+        h('td', null, l.name, h('div', { class: 'muted small' }, [l.area, l.category].filter(Boolean).join(' · '))),
+        h('td', null,
+          h('span', { class: `lstate l-${l.with ? 'chain' : l.state}` }, l.chainOf ? `верижна ← ${opName(l.chainOf)}` : l.with ? `заедно с ${opName(l.with)}` : LINK_STATE[l.state] || l.state),
+          l.why ? h('div', { class: 'muted small' }, l.why) : null,
+          followers.length ? h('div', { class: 'muted small' }, `Заедно с нея: ${followers.join(', ')}`) : null),
+        h('td', null, buttons)),
+      isPicker ? h('tr', null, h('td', { colspan: '4' }, movePicker(x, l, (to) => act('move', [l.op], { to })))) : null,
+    ];
+  });
+  const checks = x.links.filter((l) => l.leader);
+  return h('article', { class: 'kcard' },
+    h('div', { class: 'khead' },
+      x.thumb ? h('img', { class: 'cthumb', src: x.thumb, alt: '', loading: 'lazy' }) : h('div', { class: 'cthumb' }),
+      h('div', null,
+        h('strong', null, x.name, x.stars ? ` ${'★'.repeat(x.stars)}` : ''),
+        h('div', { class: 'muted small' }, `${x.id} · ${x.area}`, x.siteUrl ? [' · ', h('a', { href: x.siteUrl, target: '_blank', rel: 'noopener' }, 'на сайта ↗')] : null)),
+      h('span', { class: 'spacer' }),
+      checks.length > 1 ? h('button', { onclick: () => confirm('Всички връзки за проверка в този хотел са верни?') && act('confirm', checks.map((l) => l.op)) }, 'Всички са верни') : null),
+    h('table', { class: 'ktable' }, h('tbody', null, rows)));
+}
+
+// Избор на хотел от каталога, към който да се премести връзката
+function movePicker(x, l, onPick) {
+  const results = h('div', { class: 'presults' });
+  const input = h('input', { type: 'search', placeholder: 'Към кой хотел: име или H-номер', value: l.name, oninput: debounce(find, 250) });
+  async function find() {
+    try {
+      const r = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
+      const list = r.hotels.filter((y) => y.id !== x.id);
+      results.replaceChildren(...(list.length ? list.map((y) => h('button', { class: 'pick', onclick: () => onPick(y.id) },
+        h('strong', null, y.name), ` ${y.stars ? '★'.repeat(y.stars) : ''} · ${y.area} · ${y.id} · ${y.ops.join(', ')}`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел.')]));
     } catch (e) {
       if (e.message !== '401') toast(e.message, 'bad');
     }

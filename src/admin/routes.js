@@ -31,7 +31,7 @@ const pageHeaders = (siteUrl) => ({
 });
 
 // content/catalog – по желание: преглед на снимките от сайта и връзките им с каталога
-function createAdmin({ bookings, users, content, catalog, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+function createAdmin({ bookings, users, content, catalog, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
   const PAGE_HEADERS = pageHeaders(siteUrl);
   const files = Object.fromEntries(Object.entries(STATIC).map(([url, [f, type]]) => [url, { body: fs.readFileSync(path.join(STATIC_DIR, f)), type }]));
 
@@ -46,6 +46,8 @@ function createAdmin({ bookings, users, content, catalog, siteUrl = '', sessions
     ['GET', /^\/admin\/api\/content$/, contentList],
     ['POST', /^\/admin\/api\/content\/(\d+)\/(confirm|unlink|link)$/, contentAction],
     ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
+    ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
+    ['POST', /^\/admin\/api\/catalog\/(H\d+)\/(confirm|split|move)$/, catalogAction],
   ];
 
   async function admin(req, res, url) {
@@ -222,6 +224,86 @@ function createAdmin({ bookings, users, content, catalog, siteUrl = '', sessions
     if (q.length < 2) return { hotels: [] };
     const list = /^H\d+$/i.test(q) ? [catalog.get(q.toUpperCase())].filter(Boolean) : catalog.search(q, 15);
     return { hotels: list.map((h) => catHotel(h.id)) };
+  }
+
+  // ---------- каталог: връзки към операторите ----------
+  const needCatalog = () => {
+    if (!catalog) throw new HttpError(404, 'Каталогът не е включен');
+  };
+
+  function linkWhy(h, op, l) {
+    if (l.state !== 'check') return '';
+    if (l.why && l.why.startsWith('chain:')) {
+      const via = l.why.slice(6);
+      return `Вързан автоматично през непроверената връзка на ${opNames[via] || via} – прегледайте ги заедно.`;
+    }
+    return `Името е подобно (${Math.round((l.score || 0) * 100)}%), но не е сигурно, че е същият хотел.`;
+  }
+
+  function reviewItem(h) {
+    const c = content && content.card(h.id);
+    // групи: първата непроверена връзка води; останалите от групата (верижни, същото име) – „заедно с“ нея
+    const leaderOf = {};
+    for (const [op, l] of Object.entries(h.links)) {
+      if (l.state !== 'check' || leaderOf[op] || (l.why && l.why.startsWith('chain:'))) continue;
+      for (const o of catalog.withChain(h.id, [op])) if (!leaderOf[o]) leaderOf[o] = op;
+    }
+    return {
+      id: h.id,
+      name: h.name,
+      area: h.area,
+      stars: h.stars || null,
+      thumb: c ? c.image : null,
+      siteUrl: c ? c.siteUrl : null,
+      links: Object.entries(h.links).map(([op, l]) => ({
+        op,
+        opName: opNames[op] || op,
+        code: l.code,
+        name: l.name,
+        area: l.area || '',
+        category: l.category || '',
+        state: l.state,
+        score: l.score,
+        chainOf: l.why && l.why.startsWith('chain:') ? l.why.slice(6) : null,
+        leader: l.state === 'check' && (leaderOf[op] || op) === op,
+        with: leaderOf[op] && leaderOf[op] !== op ? leaderOf[op] : null,
+        why: linkWhy(h, op, l),
+      })),
+    };
+  }
+
+  // Без q – хотелите с връзки за проверка; с q – търсене в целия каталог (за поправки)
+  function catalogReview({ query }) {
+    needCatalog();
+    const q = String(query.q || '').trim();
+    const pending = catalog.data.hotels.filter((h) => Object.values(h.links).some((l) => l.state === 'check'));
+    const counts = { hotels: pending.length, links: pending.reduce((n, h) => n + Object.values(h.links).filter((l) => l.state === 'check').length, 0) };
+    let list;
+    if (q.length >= 2) list = /^H\d+$/i.test(q) ? [catalog.get(q.toUpperCase())].filter(Boolean) : catalog.search(q, 30);
+    else list = [...pending].sort((a, b) => a.area.localeCompare(b.area) || a.name.localeCompare(b.name));
+    return { counts, total: list.length, items: list.slice(0, 150).map(reviewItem) };
+  }
+
+  function catalogAction({ match, body, user }) {
+    needCatalog();
+    const [, id, action] = match;
+    // действието е за избраната връзка заедно с верижните, станали през нея
+    const ops = catalog.withChain(id, Array.isArray(body && body.ops) ? body.ops.map(String) : []);
+    const to = String((body && body.to) || '').trim().toUpperCase();
+    let out = {};
+    try {
+      if (action === 'confirm') catalog.confirmMany(id, ops);
+      else if (action === 'split') out = { newId: catalog.split(id, ops).id };
+      else out = { toId: catalog.move(id, ops, to).id };
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    const other = out.newId || out.toId;
+    // снимките от сайта – наново за засегнатите хотели (напр. отделеният получава своите)
+    if (content) content.match(catalog, { affected: [id, other].filter(Boolean) });
+    log.info(`[admin] ${user}: каталог ${id} ${action} ${ops.join(',') || 'всички за проверка'}${other ? ` -> ${other}` : ''}`);
+    const h = catalog.get(id);
+    return { ok: true, ops, ...out, hotel: h ? reviewItem(h) : null, other: other ? reviewItem(catalog.get(other)) : null };
   }
 
   return admin;
