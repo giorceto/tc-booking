@@ -130,6 +130,10 @@ test('API и страницата: снимка в резултатите, /api/
 
   const page = await fetch(base + '/');
   assert.match(page.headers.get('content-security-policy'), /img-src 'self' data: https:\/\/www\.example\.com;/);
+  const html = await page.text();
+  assert.ok(html.includes(`<img src="${SITE}/img/logo.png"`), 'логото от сайта');
+  assert.ok(html.includes(`<img class="hero-img" src="${SITE}/img/SNIMKI/`), 'голямата снимка от сайта');
+  assert.ok(!html.includes('<!--LOGO-->') && !html.includes('<!--HERO-->'));
 
   // админ
   const login = await fetch(base + '/admin/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: 'ana', password: 'много-тайна-парола' }) });

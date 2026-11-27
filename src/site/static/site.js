@@ -49,50 +49,43 @@ const S = {
 };
 
 // ---------- формата ----------
+// Дати и гости са в S (не в полета): S.checkIn, S.checkOut (ГГГГ-ММ-ДД), S.adults, S.childAges ('' = неизбрана възраст)
+Object.assign(S, { checkIn: null, checkOut: null, adults: 2, childAges: [] });
+const MAX_NIGHTS = 30;
+const nightsOf = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+
 function initForm() {
-  const opts = (sel, from, to, def, fmt = String) => {
-    for (let i = from; i <= to; i++) sel.append(h('option', { value: i, selected: i === def }, fmt(i)));
-  };
-  opts($('nights'), 1, 21, 7);
-  opts($('adults'), 1, 6, 2);
-  opts($('children'), 0, 3, 0);
-  $('date').min = today();
-  $('children').addEventListener('change', renderAges);
   $('search').addEventListener('submit', onSubmit);
   initSuggest();
-}
-
-function renderAges(_, values = []) {
-  const n = Number($('children').value);
-  const box = $('ages');
-  box.hidden = n === 0;
-  const old = [...box.querySelectorAll('select')].map((s) => s.value);
-  box.replaceChildren(
-    h('span', { class: 'label' }, n === 1 ? 'Възраст на детето' : 'Възраст на децата'),
-    h('div', { class: 'age-row' }, Array.from({ length: n }, (_, i) => {
-      const sel = h('select', { 'aria-label': `Възраст на дете ${i + 1}` }, h('option', { value: '' }, 'г.'));
-      for (let a = 0; a <= 17; a++) sel.append(h('option', { value: a }, `${a} г.`));
-      sel.value = values[i] ?? old[i] ?? '';
-      return sel;
-    }))
-  );
+  $('dates-btn').addEventListener('click', () => (CAL.open ? closeCal() : openCal()));
+  $('pax-btn').addEventListener('click', () => ($('pax').hidden ? openPax() : closePax()));
+  // клик извън прозорчетата и Escape ги затварят
+  document.addEventListener('mousedown', (e) => {
+    if (CAL.open && !e.target.closest('.seg.dates')) closeCal();
+    if (!$('pax').hidden && !e.target.closest('.seg.pax')) closePax();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (CAL.open) closeCal(true);
+    if (!$('pax').hidden) closePax(true);
+  });
+  renderDatesText();
+  renderPaxText();
 }
 
 function readForm() {
-  const childAges = [...$('ages').querySelectorAll('select')].map((s) => s.value);
   if (!S.target) S.target = resolveTyped($('where').value);
   if (!S.target) return { error: 'Изберете курорт или хотел от списъка.', focus: 'where' };
-  const date = $('date').value;
-  if (!date) return { error: 'Изберете дата на настаняване.', focus: 'date' };
-  if (date < today()) return { error: 'Датата на настаняване е минала.', focus: 'date' };
-  if (childAges.some((a) => a === '')) return { error: 'Изберете възрастта на всяко дете.' };
+  if (!S.checkIn || !S.checkOut) return { error: 'Изберете дати на настаняване и напускане.', focus: 'dates-btn' };
+  if (S.checkIn < today()) return { error: 'Датата на настаняване е минала.', focus: 'dates-btn' };
+  if (S.childAges.some((a) => a === '')) return { error: 'Изберете възрастта на всяко дете.', focus: 'pax-btn' };
   return {
     params: {
       ...(S.target.hotel ? { hotel: S.target.hotel } : { area: S.target.area }),
-      date,
-      nights: Number($('nights').value),
-      adults: Number($('adults').value),
-      childAges: childAges.map(Number),
+      date: S.checkIn,
+      nights: nightsOf(S.checkIn, S.checkOut),
+      adults: S.adults,
+      childAges: S.childAges.map(Number),
     },
   };
 }
@@ -100,13 +93,188 @@ function readForm() {
 function onSubmit(e) {
   e.preventDefault();
   hideSuggest();
+  closeCal();
+  closePax();
   const r = readForm();
   $('form-error').textContent = r.error || '';
   if (r.error) {
     if (r.focus) $(r.focus).focus();
+    if (r.focus === 'dates-btn') openCal();
+    if (r.focus === 'pax-btn') openPax();
     return;
   }
   search(r.params);
+}
+
+// На телефон полетата са едно под друго и прозорчето е под цялото „хапче“ – слагаме го точно под полето
+function placePop(pop) {
+  if (!window.matchMedia('(max-width: 900px)').matches) {
+    pop.style.top = '';
+    return;
+  }
+  const seg = pop.closest('.seg');
+  pop.style.top = `${seg.offsetTop + seg.offsetHeight + 6}px`;
+}
+
+// ---------- календар: от – до, дд.мм.гггг ----------
+const MONTHS = ['Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни', 'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'];
+const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+const CAL = { open: false, y: 0, m: 0 };
+const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+function renderDatesText() {
+  const el = $('dates-text');
+  const sub = $('dates-sub');
+  el.classList.toggle('placeholder', !S.checkIn);
+  if (!S.checkIn) el.textContent = 'Изберете дати';
+  else if (!S.checkOut) el.textContent = `${day(S.checkIn)} – …`;
+  else el.textContent = `${day(S.checkIn)} – ${day(S.checkOut)}`;
+  sub.hidden = !(S.checkIn && S.checkOut);
+  if (!sub.hidden) sub.textContent = plural(nightsOf(S.checkIn, S.checkOut), 'нощувка', 'нощувки');
+}
+
+function openCal() {
+  closePax();
+  hideSuggest();
+  const base = S.checkIn || today();
+  CAL.y = Number(base.slice(0, 4));
+  CAL.m = Number(base.slice(5, 7)) - 1;
+  CAL.open = true;
+  $('cal').hidden = false;
+  $('dates-btn').setAttribute('aria-expanded', 'true');
+  renderCal();
+  placePop($('cal'));
+  const first = $('cal').querySelector('.day.start') || $('cal').querySelector('.day:not([disabled])');
+  if (first) first.focus();
+}
+
+function closeCal(focusBack) {
+  if (!CAL.open) return;
+  CAL.open = false;
+  $('cal').hidden = true;
+  $('dates-btn').setAttribute('aria-expanded', 'false');
+  if (focusBack) $('dates-btn').focus();
+}
+
+function shiftMonth(k) {
+  const d = new Date(Date.UTC(CAL.y, CAL.m + k, 1));
+  const t = today();
+  if (d.getUTCFullYear() * 12 + d.getUTCMonth() < Number(t.slice(0, 4)) * 12 + Number(t.slice(5, 7)) - 1) return;
+  CAL.y = d.getUTCFullYear();
+  CAL.m = d.getUTCMonth();
+  renderCal();
+}
+
+function renderCal() {
+  const months = window.matchMedia('(max-width: 700px)').matches ? 1 : 2;
+  const t = today();
+  const maxDate = addDays(t, 729);
+  // при избор на напускане – до 30 нощувки след настаняването
+  const pickingOut = S.checkIn && !S.checkOut;
+  const limit = pickingOut ? addDays(S.checkIn, MAX_NIGHTS) : maxDate;
+  const grids = [];
+  for (let k = 0; k < months; k++) {
+    const first = new Date(Date.UTC(CAL.y, CAL.m + k, 1));
+    const y = first.getUTCFullYear();
+    const m = first.getUTCMonth();
+    const offset = (first.getUTCDay() + 6) % 7; // понеделник първи
+    const count = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const cells = [];
+    for (let i = 0; i < offset; i++) cells.push(h('span', { class: 'blank' }));
+    for (let d = 1; d <= count; d++) {
+      const id = isoOf(y, m, d);
+      const cls = ['day'];
+      if (id === t) cls.push('today');
+      if (id === S.checkIn) cls.push('start');
+      if (id === S.checkOut) cls.push('end');
+      if (S.checkIn && S.checkOut && id > S.checkIn && id < S.checkOut) cls.push('in');
+      const off = id < t || id > limit || (pickingOut && id === S.checkIn);
+      cells.push(h('button', {
+        type: 'button', class: cls.join(' '), 'data-date': id, disabled: off && id !== S.checkIn,
+        'aria-label': `${d} ${MONTHS[m].toLowerCase()} ${y}`, 'aria-pressed': String(id === S.checkIn || id === S.checkOut),
+        onclick: () => pickDay(id),
+        onmouseenter: () => hoverDay(id),
+        onfocus: () => hoverDay(id),
+      }, d));
+    }
+    grids.push(h('div', { class: 'month' },
+      h('div', { class: 'mtitle' }, `${MONTHS[m]} ${y}`),
+      h('div', { class: 'grid' }, WEEKDAYS.map((w) => h('span', { class: 'wd' }, w)), cells)));
+  }
+  const n = S.checkIn && S.checkOut ? nightsOf(S.checkIn, S.checkOut) : 0;
+  const hint = !S.checkIn ? 'Изберете дата на настаняване' : !S.checkOut ? 'Изберете дата на напускане' : `${day(S.checkIn)} – ${day(S.checkOut)} · ${plural(n, 'нощувка', 'нощувки')}`;
+  $('cal').replaceChildren(
+    h('div', { class: 'cal-head' },
+      h('button', { type: 'button', class: 'nav', 'aria-label': 'Предишен месец', onclick: () => shiftMonth(-1) }, '‹'),
+      h('button', { type: 'button', class: 'nav', 'aria-label': 'Следващ месец', onclick: () => shiftMonth(1) }, '›')),
+    h('div', { class: 'months' }, grids),
+    h('div', { class: 'cal-foot' },
+      h('span', { class: 'hint' }, hint),
+      S.checkIn ? h('button', { type: 'button', class: 'link', onclick: () => { S.checkIn = S.checkOut = null; renderDatesText(); renderCal(); } }, 'Изчисти') : null,
+      h('button', { type: 'button', class: 'primary small', disabled: !n, onclick: () => closeCal(true) }, 'Готово')));
+}
+
+// преглед на периода, докато се избира напускането
+function hoverDay(id) {
+  if (!S.checkIn || S.checkOut) return;
+  for (const b of $('cal').querySelectorAll('.day')) b.classList.toggle('in', b.dataset.date > S.checkIn && b.dataset.date <= id && !b.disabled);
+}
+
+function pickDay(id) {
+  if (!S.checkIn || S.checkOut || id <= S.checkIn) {
+    S.checkIn = id;
+    S.checkOut = null;
+  } else S.checkOut = id;
+  $('form-error').textContent = '';
+  renderDatesText();
+  renderCal();
+  const again = $('cal').querySelector(`.day[data-date="${id}"]`);
+  if (again) again.focus();
+  if (S.checkOut) setTimeout(() => closeCal(true), 250);
+}
+
+// ---------- гости ----------
+function renderPaxText() {
+  const k = S.childAges.length;
+  $('pax-text').textContent = `${plural(S.adults, 'възрастен', 'възрастни')}${k ? `, ${plural(k, 'дете', 'деца')}` : ''}`;
+}
+
+function openPax() {
+  closeCal();
+  hideSuggest();
+  $('pax').hidden = false;
+  $('pax-btn').setAttribute('aria-expanded', 'true');
+  renderPax();
+  placePop($('pax'));
+  const b = $('pax').querySelector('button');
+  if (b) b.focus();
+}
+
+function closePax(focusBack) {
+  if ($('pax').hidden) return;
+  $('pax').hidden = true;
+  $('pax-btn').setAttribute('aria-expanded', 'false');
+  if (focusBack) $('pax-btn').focus();
+}
+
+function renderPax() {
+  const stepper = (label, sub, value, min, max, set) => h('div', { class: 'step-row' },
+    h('div', null, h('div', null, label), sub ? h('small', { class: 'muted' }, sub) : null),
+    h('div', { class: 'stepper' },
+      h('button', { type: 'button', 'aria-label': `${label}: по-малко`, disabled: value <= min, onclick: () => { set(value - 1); renderPax(); renderPaxText(); } }, '−'),
+      h('span', { 'aria-live': 'polite' }, value),
+      h('button', { type: 'button', 'aria-label': `${label}: повече`, disabled: value >= max, onclick: () => { set(value + 1); renderPax(); renderPaxText(); } }, '+')));
+  $('pax').replaceChildren(
+    stepper('Възрастни', '', S.adults, 1, 6, (v) => (S.adults = v)),
+    stepper('Деца', 'до 17 години', S.childAges.length, 0, 3, (v) => (S.childAges = v > S.childAges.length ? [...S.childAges, ''] : S.childAges.slice(0, v))),
+    S.childAges.length ? h('div', { class: 'ages' }, S.childAges.map((a, i) => {
+      const sel = h('select', { 'aria-label': `Възраст на дете ${i + 1}`, onchange: () => { S.childAges[i] = sel.value; $('form-error').textContent = ''; } },
+        h('option', { value: '' }, `Възраст на дете ${i + 1}`));
+      for (let y = 0; y <= 17; y++) sel.append(h('option', { value: y }, y === 0 ? 'под 1 г.' : `${y} г.`));
+      sel.value = String(a);
+      return sel;
+    })) : null,
+    h('div', { class: 'pax-foot' }, h('small', { class: 'muted' }, 'Цените са за една стая.'), h('button', { type: 'button', class: 'primary small', onclick: () => closePax(true) }, 'Готово')));
 }
 
 // ---------- предложения: курорт или хотел ----------
@@ -179,6 +347,7 @@ function showSuggest() {
     },
   }, h('span', null, s.label), h('small', null, s.hint))));
   list.hidden = false;
+  placePop(list);
   $('where').setAttribute('aria-expanded', 'true');
   if (active >= 0) $('where').setAttribute('aria-activedescendant', `sg-${active}`);
   else $('where').removeAttribute('aria-activedescendant');
@@ -203,6 +372,7 @@ async function search(params) {
   if (S.ctrl) S.ctrl.abort();
   const ctrl = (S.ctrl = new AbortController());
   Object.assign(S, { params, done: false, incomplete: false, shown: 20, board: '', onlyAvailable: false });
+  $('popular').hidden = true;
   S.results.clear();
   S.expanded.clear();
   saveUrl(params);
@@ -424,17 +594,20 @@ function loadUrl() {
     $('where').value = areaName(area);
   }
   const date = q.get('date') || '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today()) $('date').value = date;
-  const setSel = (id, v) => v && [...$(id).options].some((o) => o.value === v) && ($(id).value = v);
-  setSel('nights', q.get('nights'));
-  setSel('adults', q.get('adults'));
-  const ages = (q.get('childAges') || '').split(',').filter((x) => /^\d+$/.test(x) && Number(x) <= 17).slice(0, 3);
-  $('children').value = String(ages.length);
-  renderAges(null, ages);
-  if (S.target && $('date').value) {
+  const nights = Number(q.get('nights')) || 7;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today() && nights >= 1 && nights <= MAX_NIGHTS) {
+    S.checkIn = date;
+    S.checkOut = addDays(date, nights);
+  }
+  const adults = Number(q.get('adults'));
+  if (adults >= 1 && adults <= 6) S.adults = adults;
+  S.childAges = (q.get('childAges') || '').split(',').filter((x) => /^\d+$/.test(x) && Number(x) <= 17).slice(0, 3);
+  renderDatesText();
+  renderPaxText();
+  if (S.target && S.checkIn) {
     const r = readForm();
     if (r.params) search(r.params);
-  } else if (S.target && hotel) $('date').focus();
+  } else if (S.target && hotel) openCal();
 }
 
 // ---------- резервация ----------
@@ -499,7 +672,7 @@ function bookingForm(p) {
     guestRows.push(h('fieldset', { class: 'guest' }, h('legend', null, `Дете ${k + 1} (${age} г.)`),
       field('Име', { name: `g${i}-first`, required: true, maxlength: 60 }),
       field('Фамилия', { name: `g${i}-last`, required: true, maxlength: 60 }),
-      field('Дата на раждане', { name: `g${i}-birth`, type: 'date', required: true, max: today() })));
+      field('Дата на раждане', { name: `g${i}-birth`, required: true, placeholder: 'дд.мм.гггг', inputmode: 'numeric', maxlength: 10, oninput: maskDate })));
   });
   const err = h('p', { class: 'error', role: 'alert' });
   const send = h('button', { type: 'submit', class: 'primary' }, 'Изпрати заявката');
@@ -531,8 +704,14 @@ async function submitBooking(e, form, err, send) {
   const guests = Array.from({ length: p.adults + p.childAges.length }, (_, i) => ({
     firstName: v(`g${i}-first`),
     lastName: v(`g${i}-last`),
-    ...(form.elements[`g${i}-birth`] ? { birthDate: v(`g${i}-birth`) } : {}),
+    ...(form.elements[`g${i}-birth`] ? { birthDate: isoDate(v(`g${i}-birth`)) } : {}),
   }));
+  const badBirth = guests.findIndex((g) => g.birthDate === null);
+  if (badBirth >= 0) {
+    err.textContent = 'Датата на раждане трябва да е във формат дд.мм.гггг (напр. 02.03.2021).';
+    form.elements[`g${badBirth}-birth`].focus();
+    return;
+  }
   const body = { offerKey: B.option.offerKey, expectedPrice: B.price, contact: { name: v('name'), email: v('email'), phone: v('phone') }, guests, note: v('note') };
   B.sending = true;
   send.disabled = true;
@@ -557,6 +736,20 @@ async function submitBooking(e, form, err, send) {
   }
 }
 
+// дд.мм.гггг: точките се слагат сами, докато се пише
+function maskDate(e) {
+  const d = e.target.value.replace(/\D/g, '').slice(0, 8);
+  e.target.value = [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('.');
+}
+// дд.мм.гггг -> ГГГГ-ММ-ДД (null, ако не е истинска дата в миналото)
+function isoDate(s) {
+  const m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso && iso <= today() ? iso : null;
+}
+
 function done(j) {
   const dlg = $('book');
   dlg.replaceChildren(
@@ -570,6 +763,19 @@ function done(j) {
       h('button', { class: 'primary', onclick: () => dlg.close() }, 'Добре')));
 }
 
+// ---------- популярни курорти (докато още няма търсене) ----------
+function renderPopular() {
+  const box = $('popular');
+  box.hidden = Boolean(S.params) || !S.areas.length;
+  if (box.hidden) return;
+  $('popular-list').replaceChildren(...S.areas.slice(0, 8).map((a) => h('button', { type: 'button', class: 'resort', onclick: () => {
+    pick({ label: areaName(a.area), value: { area: a.area } });
+    $('search').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (S.checkIn && S.checkOut) $('search').requestSubmit();
+    else openCal();
+  } }, h('strong', null, areaName(a.area)), h('span', null, plural(a.hotels, 'хотел', 'хотела')))));
+}
+
 // ---------- старт ----------
 (async () => {
   initForm();
@@ -581,4 +787,5 @@ function done(j) {
   }
   if (!S.areas.length) $('status').replaceChildren(h('p', { class: 'note' }, 'Търсенето временно не работи. Моля, опитайте по-късно.'));
   loadUrl();
+  renderPopular();
 })();

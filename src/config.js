@@ -53,6 +53,8 @@ module.exports = {
   CORS_ORIGIN: env.CORS_ORIGIN || '',
   // Нашият сайт – оттам са снимките и описанията (scripts/import-site.js) и само от него страницата зарежда снимки
   SITE_URL: (env.SITE_URL || 'https://www.tours-club.com').replace(/\/+$/, ''),
+  // Голямата снимка най-горе на страницата за търсене (празно – снимката от началото на сайта)
+  HERO_IMAGE: env.HERO_IMAGE || undefined,
   // Надценка върху нетната цена на доставчика (%), докато няма правила по хотел/сезон
   MARKUP_PCT: Number(env.MARKUP_PCT || 0),
   // Кога всяка нощ се обновява каталогът от операторите (местно време, hh:mm)

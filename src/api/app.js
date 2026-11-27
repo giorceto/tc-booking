@@ -20,10 +20,20 @@ const { HttpError, sendJson, readJson, clientIp, RateLimit } = require('./http')
 
 // Страницата за търсене и резервация: / (busrent.eu/book/), само относителни адреси
 const SITE_DIR = path.join(__dirname, '..', 'site', 'static');
-const SITE = Object.fromEntries(
-  [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
-    .map(([url, f, type]) => [url, { body: fs.readFileSync(path.join(SITE_DIR, f)), type }])
-);
+const SITE_FILES = [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
+  .map(([url, f, type]) => [url, { text: fs.readFileSync(path.join(SITE_DIR, f), 'utf8'), type }]);
+const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+// Страницата с логото и голямата снимка от нашия сайт (ако е зададен) – попълва се веднъж при старт
+function sitePages(siteUrl, heroImage) {
+  const logo = siteUrl
+    ? `<a class="logo" href="${escAttr(siteUrl)}/"><img src="${escAttr(siteUrl)}/img/logo.png" alt="Tours Club" width="158" height="41"></a>`
+    : '<span class="brand">Tours Club</span>';
+  const hero = heroImage ? `<img class="hero-img" src="${escAttr(heroImage)}" alt="" fetchpriority="high">` : '';
+  return Object.fromEntries(
+    SITE_FILES.map(([url, f]) => [url, { type: f.type, body: Buffer.from(url === '/' ? f.text.replace('<!--LOGO-->', logo).replace('<!--HERO-->', hero) : f.text) }])
+  );
+}
 // снимките идват направо от нашия сайт (siteUrl) – само оттам
 const siteHeaders = (siteUrl) => ({
   'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:${siteUrl ? ` ${new URL(siteUrl).origin}` : ''}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
@@ -43,8 +53,9 @@ const LIMITS = {
 
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
 // content – снимки и описания от сайта (src/content/store.js); siteUrl – адресът на сайта (за CSP)
-function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', heroImage, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
   const SITE_HEADERS = siteHeaders(siteUrl);
+  const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage);
   // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите
   const withContent = (h) => {
     const c = content && content.card(h.hotelId);

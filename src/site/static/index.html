@@ -10,24 +10,52 @@
 </head>
 <body>
 <header class="top">
-  <div class="wrap"><span class="brand">Tours Club</span><span class="tag">Хотели в Турция</span></div>
+  <div class="wrap topbar"><!--LOGO--><span class="tag">Хотели в Турция</span></div>
 </header>
 
+<section class="hero" aria-label="Почивка в Турция">
+  <!--HERO-->
+  <div class="hero-text">
+    <h1>Почивка в Турция на най-добрата цена</h1>
+  </div>
+</section>
+
 <main class="wrap">
-  <form id="search" class="search" autocomplete="off" novalidate>
-    <div class="field where">
-      <label for="where">Курорт или хотел</label>
-      <input id="where" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest" placeholder="напр. Сиде или Crystal" spellcheck="false">
-      <ul id="suggest" class="suggest" role="listbox" aria-label="Предложения" hidden></ul>
+  <form id="search" class="search-card" autocomplete="off" novalidate>
+    <div class="pill">
+      <div class="seg where">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="10" r="2.6"/></svg>
+        <input id="where" type="text" role="combobox" aria-label="Курорт или хотел" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest" placeholder="Къде? Курорт или хотел" spellcheck="false">
+        <ul id="suggest" class="suggest pop" role="listbox" aria-label="Предложения" hidden></ul>
+      </div>
+      <div class="seg dates">
+        <button type="button" id="dates-btn" class="seg-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="cal">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+          <span class="seg-text"><span id="dates-text" class="seg-value placeholder">Изберете дати</span><span id="dates-sub" class="seg-sub" hidden></span></span>
+        </button>
+        <div id="cal" class="pop cal-pop" role="dialog" aria-label="Дати на престоя" hidden></div>
+      </div>
+      <div class="seg pax">
+        <button type="button" id="pax-btn" class="seg-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="pax">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/></svg>
+          <span class="seg-text"><span id="pax-text" class="seg-value">2 възрастни</span><span class="seg-sub">1 стая</span></span>
+        </button>
+        <div id="pax" class="pop pax-pop" role="dialog" aria-label="Гости" hidden></div>
+      </div>
+      <button type="submit" class="go">Търси</button>
     </div>
-    <div class="field"><label for="date">Настаняване</label><input id="date" type="date"></div>
-    <div class="field narrow"><label for="nights">Нощувки</label><select id="nights"></select></div>
-    <div class="field narrow"><label for="adults">Възрастни</label><select id="adults"></select></div>
-    <div class="field narrow"><label for="children">Деца</label><select id="children"></select></div>
-    <button type="submit" class="primary go">Търси</button>
-    <div class="field ages" id="ages" hidden></div>
+    <ul class="perks">
+      <li>Цени в реално време</li>
+      <li>Ранното записване е включено в цената</li>
+      <li>Плащане след потвърждение</li>
+    </ul>
   </form>
   <p id="form-error" class="form-error" role="alert"></p>
+
+  <section id="popular" class="popular" aria-labelledby="popular-title" hidden>
+    <h2 id="popular-title">Популярни курорти</h2>
+    <div id="popular-list" class="popular-list"></div>
+  </section>
 
   <section id="status" class="status" aria-live="polite"></section>
   <div id="filters" class="filters" hidden></div>
