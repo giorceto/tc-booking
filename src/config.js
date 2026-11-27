@@ -51,6 +51,8 @@ module.exports = {
   HOST: env.HOST || '127.0.0.1',
   // От кой адрес (сайта) може да се вика API-то от браузъра, напр. https://www.example.com; празно = само от същия адрес
   CORS_ORIGIN: env.CORS_ORIGIN || '',
+  // Нашият сайт – оттам са снимките и описанията (scripts/import-site.js) и само от него страницата зарежда снимки
+  SITE_URL: (env.SITE_URL || 'https://www.tours-club.com').replace(/\/+$/, ''),
   // Надценка върху нетната цена на доставчика (%), докато няма правила по хотел/сезон
   MARKUP_PCT: Number(env.MARKUP_PCT || 0),
   // Колко минути пазим резултат от търсене при доставчик

@@ -7,6 +7,7 @@
 //        JSON, или SSE при Accept: text/event-stream / &stream=1 (виж docs/api.md)
 //   POST /api/offer/:offerKey/recheck        нова проверка на цената при доставчика
 //   POST /api/booking                        заявка за резервация (статус „за потвърждение“)
+//   GET  /api/hotel/H1                       снимки и описание от нашия сайт
 //   GET  /                                   страницата за търсене (src/site/static)
 //
 // Нищо в отговорите към клиента не издава доставчика: няма име/код на доставчика,
@@ -23,10 +24,11 @@ const SITE = Object.fromEntries(
   [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
     .map(([url, f, type]) => [url, { body: fs.readFileSync(path.join(SITE_DIR, f)), type }])
 );
-const SITE_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+// снимките идват направо от нашия сайт (siteUrl) – само оттам
+const siteHeaders = (siteUrl) => ({
+  'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:${siteUrl ? ` ${new URL(siteUrl).origin}` : ''}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-};
+});
 
 const DUPLICATE_MS = 10 * 60 * 1000; // повторно изпратена резервация (двоен клик) в този срок връща същата
 
@@ -40,7 +42,14 @@ const LIMITS = {
 };
 
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
-function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+// content – снимки и описания от сайта (src/content/store.js); siteUrl – адресът на сайта (за CSP)
+function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+  const SITE_HEADERS = siteHeaders(siteUrl);
+  // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите
+  const withContent = (h) => {
+    const c = content && content.card(h.hotelId);
+    return c ? { ...h, ...c } : h;
+  };
   const allowed = new Set(String(corsOrigin).split(',').map((s) => s.trim()).filter(Boolean));
   const limiters = Object.fromEntries(Object.entries({ ...LIMITS, ...limits }).map(([k, [max, ms]]) => [k, new RateLimit(max, ms)]));
 
@@ -55,6 +64,7 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     ['GET', /^\/api\/search$/, search, 'search'],
     ['POST', /^\/api\/offer\/([A-Za-z0-9_-]{8,64})\/recheck$/, recheck, 'recheck'],
     ['POST', /^\/api\/booking$/, booking, 'booking'],
+    ['GET', /^\/api\/hotel\/(H\d+)$/, hotelInfo, 'catalog'],
   ];
 
   async function handler(req, res) {
@@ -120,6 +130,14 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     return { areas: [...count].map(([area, hotels]) => ({ area, hotels })).sort((a, b) => b.hotels - a.hotels) };
   }
 
+  // Снимки и описание на хотел (от нашия сайт). Без съдържание – само името.
+  function hotelInfo({ match }) {
+    const h = catalog.get(match[1]);
+    if (!h) throw new HttpError(404, 'Няма такъв хотел');
+    const c = content && content.full(h.id);
+    return { ...publicHotel(h), photos: [], sections: [], ...(c || {}) };
+  }
+
   function hotels({ query }) {
     const q = String(query.q || '').trim();
     if (q.length < 2) throw new HttpError(400, 'Напишете поне 2 букви');
@@ -149,7 +167,7 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     if (!stream) {
       const r = await run({});
       const { count, incomplete } = done(r);
-      return { params: r.params, count, incomplete, hotels: r.hotels };
+      return { params: r.params, count, incomplete, hotels: r.hotels.map(withContent) };
     }
 
     // SSE: събитие "part" при всеки нов отговор (само хотелите, които са нови или са се променили),
@@ -163,7 +181,7 @@ function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = co
     res.write(': start\n\n');
     const sent = new Map(); // hotelId -> JSON, изпратен последно
     const sendDelta = (r) => {
-      const changed = r.hotels.filter((h) => {
+      const changed = r.hotels.map(withContent).filter((h) => {
         const j = JSON.stringify(h);
         if (sent.get(h.hotelId) === j) return false;
         sent.set(h.hotelId, j);

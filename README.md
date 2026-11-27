@@ -51,6 +51,9 @@ src/
     static/              страницата (HTML/JS/CSS без библиотеки)
     translit.js          кирилица -> латиница (паспортния закон) за имената на гостите
   site/static/           страницата за търсене и резервация (HTML/JS/CSS без библиотеки)
+  content/
+    tcsite.js            чете хотел от нашия сайт: снимки, описание, курорт, оценка
+    store.js             data/content.json, връзване с каталога (H<id>), преглед в админа
   auth.js                служители: node src/auth.js add <име>
   server.js              npm start
   export/
@@ -59,6 +62,7 @@ src/
 deploy/
   install.sh             качване/обновяване на сървъра (systemd + блок в Caddy), виж docs/deploy.md
 scripts/
+  import-site.js         внос на снимки и описания от сайта (всяка нощ на сървъра)
   selftest.js            проверка на входа при всички оператори
   search.js              пробно търсене от командния ред
 test/                    тестове без мрежа (npm test)
@@ -95,4 +99,5 @@ node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal пок
 | [docs/api.md](docs/api.md) | Booking API за сайта – адреси, параметри, отговори, грешки |
 | [docs/admin.md](docs/admin.md) | админ – потребители, работа с резервация, сигурност, Caddy |
 | [docs/deploy.md](docs/deploy.md) | качване на busrent.eu/book (`deploy/install.sh`) |
+| [docs/site-content.md](docs/site-content.md) | снимки и описания от нашия сайт, връзване с каталога |
 | [docs/lessons-learned.md](docs/lessons-learned.md) | капани и грешки, които вече сме минали |

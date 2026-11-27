@@ -27,6 +27,7 @@ node /root/tc-booking/src/auth.js add <име>
 3. Копира `catalog.json` и `hotels-*.json` от `/root/tc-prices/data/`, ако тук ги няма. Те са по-нови от тези в git.
 4. Пуска тестовете. Ако не минат, спира, преди да е пипнал услугата и Caddy.
 5. Прави услугата `/etc/systemd/system/tc-booking.service` (`Restart=always`, `TZ=Europe/Sofia`) и я пуска.
+   Пуска и нощния внос на снимки от сайта (`tc-booking-import.timer`, около 04:20). При първото инсталиране пуска внос веднага във фона (виж [site-content.md](site-content.md)).
 6. **Добавя** в Caddyfile, в блока на `busrent.eu`, следното:
    ```
    redir /book /book/ 308

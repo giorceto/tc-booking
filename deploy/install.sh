@@ -12,7 +12,7 @@
 #   2. .env – само ако го няма (паролите на операторите се вземат от .env на TC Prices); портът да е свободен;
 #   3. каталога и списъците хотели – от TC Prices, ако тук още ги няма;
 #   4. тестовете (без мрежа) – при грешка спира, преди да пипне услугата и Caddy;
-#   5. systemd услуга tc-booking (Restart=always, TZ=Europe/Sofia);
+#   5. systemd услуга tc-booking (Restart=always, TZ=Europe/Sofia) и нощен внос от сайта (tc-booking-import.timer);
 #   6. Caddy: ДОБАВЯ блок за /book в съществуващия busrent.eu { ... } – не пише файла отначало.
 #      Пази копие, проверява с `caddy validate`, след презареждане проверява, че /prices работи
 #      както преди; ако нещо се счупи – връща старото копие.
@@ -129,6 +129,41 @@ for _ in $(seq 1 20); do
 done
 curl -fsS -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 || { journalctl -u "$SERVICE" -n 30 --no-pager >&2; die "услугата не отговаря на 127.0.0.1:$PORT"; }
 ok "работи на 127.0.0.1:$PORT (логове: journalctl -u $SERVICE -n 60)"
+
+# нощен внос на снимки и описания от нашия сайт (scripts/import-site.js)
+IMPORT=tc-booking-import
+write_unit() { # $1 файл, $2 съдържание – записва само ако е различно
+  if [ ! -f "$1" ] || [ "$(cat "$1")" != "$2" ]; then printf '%s\n' "$2" >"$1"; return 0; fi
+  return 1
+}
+CHANGED=0
+write_unit "$UNIT_DIR/$IMPORT.service" "[Unit]
+Description=TC Booking – снимки и описания на хотелите от нашия сайт
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=$APP_DIR
+ExecStart=$NODE scripts/import-site.js
+Environment=TZ=Europe/Sofia" && CHANGED=1
+write_unit "$UNIT_DIR/$IMPORT.timer" "[Unit]
+Description=TC Booking – нощен внос от сайта
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target" && CHANGED=1
+[ "$CHANGED" = 1 ] && systemctl daemon-reload
+systemctl enable --quiet --now "$IMPORT.timer"
+ok "внос от сайта всяка нощ ($IMPORT.timer)"
+if [ ! -f data/content.json ]; then
+  systemctl start --no-block "$IMPORT.service"
+  ok "първият внос върви във фона (~10 мин): journalctl -u $IMPORT -f"
+fi
 
 # ---------- 6. Caddy ----------
 step "6. Caddy: $SITE$PREFIX"

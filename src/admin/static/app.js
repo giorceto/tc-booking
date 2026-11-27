@@ -6,7 +6,7 @@ const STATUS = { pending: 'За потвърждение', confirmed: 'Потв�
 const TABS = [['pending', 'За потвърждение'], ['confirmed', 'Потвърдени'], ['rejected', 'Отказани'], ['cancelled', 'Анулирани'], ['', 'Всички']];
 const REFRESH_MS = 60000;
 
-const state = { user: null, status: 'pending', q: '', list: [], counts: {}, total: 0, selected: null, detail: null, timer: null };
+const state = { view: 'bookings', user: null, status: 'pending', q: '', list: [], counts: {}, total: 0, selected: null, detail: null, timer: null };
 const $app = document.getElementById('app');
 
 // ---------- помощни ----------
@@ -92,7 +92,23 @@ function renderLogin(message) {
 // ---------- основен изглед ----------
 let $tabs, $list, $detail, $search;
 
+function header() {
+  const nav = (v, label) => h('button', { class: `view${state.view === v ? ' on' : ''}`, 'aria-current': state.view === v ? 'page' : null, onclick: () => {
+    if (state.view === v) return;
+    state.view = v;
+    renderMain();
+  } }, label);
+  return h('header', { class: 'top' },
+    h('strong', null, 'TC Booking'),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('content', 'Снимки от сайта')),
+    h('span', { class: 'spacer' }),
+    h('span', { class: 'muted' }, state.user),
+    h('button', { class: 'link', onclick: logout }, 'Изход'));
+}
+
 function renderMain() {
+  stopRefresh();
+  if (state.view === 'content') return renderContentView();
   $tabs = h('nav', { class: 'tabs', 'aria-label': 'Статус' });
   $search = h('input', { type: 'search', placeholder: 'Търсене: номер, име, имейл, хотел…', value: state.q, oninput: debounce(() => {
     state.q = $search.value;
@@ -101,11 +117,7 @@ function renderMain() {
   $list = h('section', { class: 'list' });
   $detail = h('section', { class: 'detail' }, h('p', { class: 'muted empty' }, 'Изберете резервация от списъка.'));
   $app.replaceChildren(
-    h('header', { class: 'top' },
-      h('strong', null, 'TC Booking'), h('span', { class: 'muted' }, ' · Резервации'),
-      h('span', { class: 'spacer' }),
-      h('span', { class: 'muted' }, state.user),
-      h('button', { class: 'link', onclick: logout }, 'Изход')),
+    header(),
     h('div', { class: 'toolbar' }, $tabs, $search),
     h('main', { class: 'grid' }, $list, $detail));
   loadList();
@@ -126,6 +138,7 @@ function renderTabs() {
 }
 
 async function loadList() {
+  if (state.view !== 'bookings') return;
   try {
     const qs = new URLSearchParams();
     if (state.status) qs.set('status', state.status);
@@ -270,6 +283,105 @@ async function copyText(text) {
     t.remove();
   }
   toast('Копирано');
+}
+
+// ---------- снимки от сайта ↔ каталог ----------
+const CTABS = [['check', 'За проверка'], ['none', 'Без връзка'], ['linked', 'Вързани']];
+const cs = { state: 'check', q: '', items: [], counts: {}, total: 0, updatedAt: null, picker: null };
+let $ctabs, $clist;
+
+function renderContentView() {
+  $ctabs = h('nav', { class: 'tabs', 'aria-label': 'Връзки' });
+  const search = h('input', { type: 'search', placeholder: 'Търсене: име, курорт, H-номер…', value: cs.q, oninput: debounce(() => {
+    cs.q = search.value;
+    loadContent();
+  }, 300) });
+  $clist = h('section', { class: 'clist' });
+  $app.replaceChildren(header(),
+    h('div', { class: 'toolbar' }, $ctabs, search),
+    h('p', { class: 'muted small hint' }, 'Снимките и описанията идват от нашия сайт (npm run import-site, всяка нощ). Показват се на клиентите само при вързаните хотели. „За проверка“ са несигурни съвпадения – потвърдете или разкачете.'),
+    $clist);
+  loadContent();
+}
+
+async function loadContent() {
+  try {
+    const qs = new URLSearchParams({ state: cs.state });
+    if (cs.q.trim()) qs.set('q', cs.q.trim());
+    const r = await api(`api/content?${qs}`);
+    Object.assign(cs, { items: r.items, counts: r.counts, total: r.total, updatedAt: r.updatedAt });
+    renderContent();
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
+}
+
+async function contentAction(siteId, action, body = {}) {
+  try {
+    await api(`api/content/${siteId}/${action}`, body);
+    cs.picker = null;
+    toast(action === 'unlink' ? 'Разкачено' : 'Записано');
+    loadContent();
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
+}
+
+function renderContent() {
+  $ctabs.replaceChildren(...CTABS.map(([s, label]) => h('button', { class: `tab${cs.state === s ? ' active' : ''}${s === 'check' && cs.counts.check ? ' attention' : ''}`, 'aria-pressed': String(cs.state === s), onclick: () => {
+    cs.state = s;
+    cs.picker = null;
+    loadContent();
+  } }, label, h('span', { class: 'count' }, cs.counts[s] || 0))));
+  if (!cs.items.length) {
+    $clist.replaceChildren(h('p', { class: 'muted empty' }, cs.updatedAt ? 'Няма нищо тук.' : 'Още няма внос от сайта – на сървъра: npm run import-site'));
+    return;
+  }
+  const stars = (n) => (n ? ` ${'★'.repeat(n)}` : '');
+  $clist.replaceChildren(...cs.items.map((it) => {
+    const s = it.site;
+    const l = it.link;
+    const hot = l && l.hotel;
+    const actions = [];
+    if (it.state === 'check') actions.push(h('button', { class: 'primary', onclick: () => contentAction(s.siteId, 'confirm') }, 'Потвърди'));
+    if (l) actions.push(h('button', { class: 'warn', onclick: () => contentAction(s.siteId, 'unlink') }, 'Разкачи'));
+    actions.push(h('button', { onclick: () => {
+      cs.picker = cs.picker === s.siteId ? null : s.siteId;
+      renderContent();
+    } }, l ? 'Свържи с друг…' : 'Свържи с…'));
+    return h('article', { class: `crow s-${it.state}` },
+      s.thumb ? h('img', { class: 'cthumb', src: s.thumb, alt: '', loading: 'lazy' }) : h('div', { class: 'cthumb' }),
+      h('div', { class: 'cside' },
+        h('div', { class: 'small muted' }, 'На сайта'),
+        h('strong', null, s.name, stars(s.stars)),
+        h('div', { class: 'muted small' }, `${s.locality} · ${s.photos} снимки · `, h('a', { href: s.url, target: '_blank', rel: 'noopener' }, 'страницата ↗'))),
+      h('div', { class: 'carrow', 'aria-hidden': 'true' }, '→'),
+      h('div', { class: 'cside' },
+        h('div', { class: 'small muted' }, 'В каталога'),
+        hot ? [h('strong', null, hot.name, stars(hot.stars)), h('div', { class: 'muted small' }, `${hot.area} · ${hot.id} · ${hot.ops.length} оператора · съвпадение ${Math.round(l.score * 100)}%`)] : h('span', { class: 'muted' }, '— няма —')),
+      h('div', { class: 'cactions' }, actions),
+      cs.picker === s.siteId ? picker(s) : null);
+  }), ...(cs.total > cs.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${cs.items.length} от ${cs.total}.`)] : []));
+}
+
+// Избор на хотел от каталога (по име или H-номер)
+function picker(s) {
+  const results = h('div', { class: 'presults' });
+  const input = h('input', { type: 'search', placeholder: 'Хотел от каталога: име или H-номер', value: s.name, oninput: debounce(find, 250) });
+  async function find() {
+    try {
+      const r = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
+      results.replaceChildren(...(r.hotels.length ? r.hotels.map((x) => h('button', { class: 'pick', onclick: () => contentAction(s.siteId, 'link', { hotelId: x.id }) },
+        h('strong', null, x.name), ` ${x.stars ? '★'.repeat(x.stars) : ''} · ${x.area} · ${x.id} · ${x.ops.length} опер.`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел в каталога.')]));
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  }
+  setTimeout(() => {
+    input.focus();
+    find();
+  });
+  return h('div', { class: 'picker' }, input, results);
 }
 
 // ---------- общи ----------

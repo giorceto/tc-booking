@@ -24,13 +24,15 @@ const STATIC = {
   '/admin/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/admin/style.css': ['style.css', 'text/css; charset=utf-8'],
 };
-const PAGE_HEADERS = {
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+const pageHeaders = (siteUrl) => ({
+  'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:${siteUrl ? ` ${new URL(siteUrl).origin}` : ''}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
-};
+});
 
-function createAdmin({ bookings, users, sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+// content/catalog – по желание: преглед на снимките от сайта и връзките им с каталога
+function createAdmin({ bookings, users, content, catalog, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+  const PAGE_HEADERS = pageHeaders(siteUrl);
   const files = Object.fromEntries(Object.entries(STATIC).map(([url, [f, type]]) => [url, { body: fs.readFileSync(path.join(STATIC_DIR, f)), type }]));
 
   const routes = [
@@ -41,6 +43,9 @@ function createAdmin({ bookings, users, sessions = new Sessions(), guard = new L
     ['GET', /^\/admin\/api\/bookings\/(TCB-\d+)$/, detail],
     ['POST', /^\/admin\/api\/bookings\/(TCB-\d+)\/status$/, setStatus],
     ['POST', /^\/admin\/api\/bookings\/(TCB-\d+)\/comment$/, comment],
+    ['GET', /^\/admin\/api\/content$/, contentList],
+    ['POST', /^\/admin\/api\/content\/(\d+)\/(confirm|unlink|link)$/, contentAction],
+    ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
   ];
 
   async function admin(req, res, url) {
@@ -150,6 +155,58 @@ function createAdmin({ bookings, users, sessions = new Sessions(), guard = new L
       throw new HttpError(400, e.message);
     }
     return full(b);
+  }
+
+  // ---------- снимки от сайта ↔ каталог ----------
+  const needContent = () => {
+    if (!content || !catalog) throw new HttpError(404, 'Снимките от сайта не са включени');
+  };
+  const catHotel = (id) => {
+    const h = catalog.get(id);
+    return h ? { id: h.id, name: h.name, area: h.area, stars: h.stars || null, ops: Object.keys(h.links) } : null;
+  };
+
+  function contentList({ query }) {
+    needContent();
+    content.maybeReload();
+    const state = ['check', 'none', 'linked'].includes(query.state) ? query.state : 'check';
+    const all = content.list(state, query.q);
+    return {
+      counts: content.counts(),
+      updatedAt: content.data.updatedAt,
+      total: all.length,
+      items: all.slice(0, 300).map(({ site: x, link, state: st }) => ({
+        state: st,
+        site: { siteId: x.siteId, name: x.name, stars: x.stars, locality: x.locality, url: x.url, thumb: x.photos[0] ? x.photos[0].thumb : null, photos: x.photos.length },
+        link: link ? { ...link, hotel: catHotel(link.hotelId) } : null,
+      })),
+    };
+  }
+
+  function contentAction({ match, body, user }) {
+    needContent();
+    const [, siteId, action] = match;
+    try {
+      if (action === 'confirm') content.confirm(siteId);
+      else if (action === 'unlink') content.unlink(siteId);
+      else {
+        const hid = String((body && body.hotelId) || '').trim().toUpperCase();
+        if (!catalog.get(hid)) throw new Error('Няма такъв хотел в каталога');
+        content.link(siteId, hid);
+      }
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: снимки ${siteId} ${action}${body && body.hotelId ? ` ${body.hotelId}` : ''}`);
+    return { ok: true, counts: content.counts() };
+  }
+
+  function catalogSearch({ query }) {
+    needContent();
+    const q = String(query.q || '').trim();
+    if (q.length < 2) return { hotels: [] };
+    const list = /^H\d+$/i.test(q) ? [catalog.get(q.toUpperCase())].filter(Boolean) : catalog.search(q, 15);
+    return { hotels: list.map((h) => catHotel(h.id)) };
   }
 
   return admin;

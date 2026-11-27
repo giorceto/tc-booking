@@ -10,7 +10,8 @@ const { BookingStore } = require('./bookings/store');
 const { createServer } = require('./api/app');
 const { createAdmin } = require('./admin/routes');
 const { Users } = require('./auth');
-const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN } = require('./config');
+const { ContentStore } = require('./content/store');
+const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL } = require('./config');
 
 const dataFile = path.join(ROOT, 'data', 'catalog.json');
 const catalogFile = fs.existsSync(dataFile) ? dataFile : path.join(ROOT, 'data', 'seed', 'catalog.json');
@@ -18,6 +19,7 @@ const catalog = new Catalog(catalogFile);
 const suppliers = createSuppliers();
 const engine = new SearchEngine({ catalog, suppliers, markupPct: MARKUP_PCT, cacheMin: CACHE_MIN });
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
+const content = new ContentStore(path.join(ROOT, 'data', 'content.json')); // npm run import-site
 
 const stamp = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Sofia' });
 const log = {
@@ -27,14 +29,16 @@ const log = {
 };
 
 const users = new Users(path.join(ROOT, 'data', 'users.json'));
-const admin = createAdmin({ bookings, users, log });
+const admin = createAdmin({ bookings, users, content, catalog, siteUrl: SITE_URL, log });
 
-const server = createServer({ engine, catalog, bookings, admin, corsOrigin: CORS_ORIGIN, log });
+const server = createServer({ engine, catalog, bookings, admin, content, siteUrl: SITE_URL, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела)`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
   log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
+  const cc = content.counts();
+  log.info(`  снимки от сайта: ${cc.linked} хотела${cc.check ? `, ${cc.check} за проверка` : ''}${cc.linked + cc.check + cc.none ? '' : ' – npm run import-site'}`);
   const n = users.list().length;
   log.info(`  админ: http://${HOST}:${PORT}/admin/ (${n ? `${n} потребител${n > 1 ? 'я' : ''}` : 'няма потребители – node src/auth.js add <име>'})`);
 });
