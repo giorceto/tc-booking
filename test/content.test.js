@@ -59,15 +59,17 @@ test('връзване: по име и курорт, непроверена вр
   const dir = tmp();
   const catalog = catalogFile(dir);
   const store = new ContentStore(path.join(dir, 'content.json'));
-  store.put(rec('1', 'TEST PALACE & SPA', 'Сиде')); // -> H1 (курортът Сиде, не H3 в Кемер)
+  store.put(rec('1', 'TEST PALACE & SPA', 'Сиде')); // -> H1 (курортът Сиде, не H3 в Кемер), но №3 е по-точното име -> check
   store.put(rec('2', 'SUNNY GARDEN CLUB', 'Алания')); // съвпада само с непроверено име в каталога -> check
-  store.put(rec('3', 'TEST PALACE', 'Сиде')); // също -> H1, но H1 вече е зает -> check
+  store.put(rec('3', 'TEST PALACE', 'Сиде')); // точно основното име на H1 -> auto
   store.put(rec('4', 'COMPLETELY DIFFERENT', 'Бодрум'));
   const st = store.match(catalog);
   assert.deepStrictEqual(st, { auto: 1, check: 2, none: 1, ok: 0 });
-  assert.deepStrictEqual(store.data.links['1'], { hotelId: 'H1', state: 'auto', score: 1 });
+  assert.deepStrictEqual(store.data.links['3'], { hotelId: 'H1', state: 'auto', score: 1 });
   assert.strictEqual(store.data.links['2'].state, 'check');
-  assert.strictEqual(store.data.links['3'].state, 'check');
+  assert.strictEqual(store.data.links['2'].why, 'catalog', 'причина: само непроверено име в каталога');
+  assert.strictEqual(store.data.links['1'].state, 'check');
+  assert.strictEqual(store.data.links['1'].why, 'taken:3', 'причина: H1 вече е вързан с №3');
   assert.ok(!store.data.links['4']);
   assert.ok(store.card('H1') && !store.card('H2'), 'на клиента се показва само вързаното (auto/ok)');
 
@@ -76,13 +78,14 @@ test('връзване: по име и курорт, непроверена вр
   store.match(catalog);
   assert.deepStrictEqual(store.data.links['4'], { hotelId: 'H3', state: 'ok', score: 1 });
   assert.ok(!store.data.links['2'], 'разкаченият не се връзва пак');
-  store.confirm('3'); // човекът казва: H1 е №3, не №1
-  assert.strictEqual(store.data.links['3'].state, 'ok');
-  assert.strictEqual(store.data.links['1'].state, 'check', 'другият към същия хотел отива за проверка');
-  assert.strictEqual(store.card('H1').siteUrl, `${SITE}/h/3/x.html`);
+  store.confirm('1'); // човекът казва: H1 е №1 (с SPA), не №3
+  assert.strictEqual(store.data.links['1'].state, 'ok');
+  assert.strictEqual(store.data.links['3'].state, 'check', 'другият към същия хотел отива за проверка');
+  assert.strictEqual(store.data.links['3'].why, 'taken:1');
+  assert.strictEqual(store.card('H1').siteUrl, `${SITE}/h/1/x.html`);
 
   const again = new ContentStore(path.join(dir, 'content.json')); // записано на диска
-  assert.strictEqual(again.data.links['3'].state, 'ok');
+  assert.strictEqual(again.data.links['1'].state, 'ok');
   assert.deepStrictEqual(again.counts(), { linked: 2, check: 1, none: 1 });
 });
 
@@ -135,6 +138,7 @@ test('API и страницата: снимка в резултатите, /api/
   assert.deepStrictEqual(j.counts, { linked: 1, check: 1, none: 0 });
   assert.strictEqual(j.items[0].site.siteId, '2');
   assert.strictEqual(j.items[0].link.hotel.id, 'H2');
+  assert.match(j.items[0].link.why, /непроверена връзка в каталога/);
   ({ j } = await get('/admin/api/catalog?q=h3', { Cookie }));
   assert.deepStrictEqual(j.hotels.map((x) => x.id), ['H3']);
   const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie }, body: JSON.stringify(body || {}) });
@@ -145,4 +149,28 @@ test('API и страницата: снимка в резултатите, /api/
   assert.strictEqual((await fetch(base + '/admin/api/content?state=check')).status, 401, 'без вход – не');
   const admin2 = await fetch(base + '/admin/', { headers: { Cookie } });
   assert.match(admin2.headers.get('content-security-policy'), /img-src 'self' data: https:\/\/www\.example\.com;/);
+});
+
+test('имена: апострофи и слято/разделено писане', () => {
+  const { fingerprint, nameScore } = require('../src/catalog/normalize');
+  const sc = (a, b) => nameScore(fingerprint(a), fingerprint(b));
+  assert.strictEqual(sc("CITY'S HILL HOTEL", 'CITYS HILL HOTEL'), 1);
+  assert.strictEqual(sc("L'OCEANICA BEACH RESORT", 'LOCEANICA BEACH RESORT'), 1);
+  assert.ok(sc('MERT SEASIDE HOTEL', 'MERT SEA SIDE HOTEL') >= 0.92);
+  assert.ok(sc('MAR-BAS SELECT BEACH', 'MARBAS SELECT BEACH') >= 0.92);
+  assert.ok(sc('MY DREAM HOTEL', 'MY DREAM ISTANBUL HOTEL') < 0.92, 'различни хотели остават различни');
+});
+
+test('при равен резултат печели страницата с основното име на хотела, не с име от връзка', () => {
+  const dir = tmp();
+  const f = path.join(dir, 'catalog.json');
+  // каталогът е слял два хотела: при AAA е ROYAL, при BBB е RESORT (грешка в каталога)
+  fs.writeFileSync(f, JSON.stringify({ hotels: [{ id: 'H1', name: 'AQI PEGASOS ROYAL', area: 'ALANYA', links: { AAA: { code: 'R', name: 'AQI PEGASOS ROYAL', state: 'ok' }, BBB: { code: 'S', name: 'AQI PEGASOS RESORT', state: 'auto' } } }], blocked: [], nextId: 2 }));
+  const store = new ContentStore(path.join(dir, 'content.json'));
+  store.put(rec('10', 'AQI PEGASOS RESORT', 'Алания'));
+  store.put(rec('11', 'AQI PEGASOS ROYAL', 'Алания'));
+  store.match(new Catalog(f));
+  assert.strictEqual(store.data.links['11'].state, 'auto');
+  assert.strictEqual(store.data.links['10'].state, 'check');
+  assert.strictEqual(store.data.links['10'].why, 'taken:11');
 });

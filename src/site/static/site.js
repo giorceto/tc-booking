@@ -399,6 +399,7 @@ async function openInfo(x) {
       d.sections.map((s) => h('section', null, h('h3', null, s.title), h('p', null, s.text))),
       d.siteUrl ? h('p', null, h('a', { href: d.siteUrl, target: '_blank', rel: 'noopener' }, 'Виж хотела на сайта на Tours Club ↗')) : null));
   if (d.photos.length) show(0);
+  close.focus(); // при презареждането фокусът излиза от прозореца – без това стрелките не работят
 }
 
 // ---------- адрес на страницата: /book/?area=SIDE&date=…  (сайтът може да води направо към хотел: ?hotel=H123) ----------

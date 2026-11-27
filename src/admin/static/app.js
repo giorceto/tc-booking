@@ -360,6 +360,7 @@ function renderContent() {
         h('div', { class: 'small muted' }, 'В каталога'),
         hot ? [h('strong', null, hot.name, stars(hot.stars)), h('div', { class: 'muted small' }, `${hot.area} · ${hot.id} · ${hot.ops.length} оператора · съвпадение ${Math.round(l.score * 100)}%`)] : h('span', { class: 'muted' }, '— няма —')),
       h('div', { class: 'cactions' }, actions),
+      l && l.why ? h('div', { class: 'cwhy small' }, l.why) : null,
       cs.picker === s.siteId ? picker(s) : null);
   }), ...(cs.total > cs.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${cs.items.length} от ${cs.total}.`)] : []));
 }

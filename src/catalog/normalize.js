@@ -17,6 +17,7 @@ function cleanName(name) {
   s = s.replace(/\bEX\.?\s.*$/, ' '); // EX. СТАРО ИМЕ без скоби
   s = s.replace(/\+\s*\d+/g, ' '); // +16
   s = s.replace(/&/g, ' ');
+  s = s.replace(/['’‘`´]/g, ''); // CITY'S -> CITYS, L'OCEANICA -> LOCEANICA
   s = s.replace(/[^A-Z0-9 ]+/g, ' ');
   return s.replace(/\s+/g, ' ').trim();
 }
@@ -52,6 +53,8 @@ function fingerprint(name) {
 function nameScore(fa, fb) {
   if (!fa.key || !fb.key) return 0;
   if (fa.key === fb.key) return 1;
+  // същото, писано слято/разделено: SEASIDE = SEA SIDE, MAR-BAS = MARBAS
+  if (fa.key.replace(/ /g, '') === fb.key.replace(/ /g, '')) return 0.96;
   const t = dice(fa.tok, fb.tok);
   const c = dice(fa.tri, fb.tri);
   // всички думи на по-краткото име се съдържат в по-дългото

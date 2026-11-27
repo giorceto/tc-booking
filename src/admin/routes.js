@@ -178,9 +178,24 @@ function createAdmin({ bookings, users, content, catalog, siteUrl = '', sessions
       items: all.slice(0, 300).map(({ site: x, link, state: st }) => ({
         state: st,
         site: { siteId: x.siteId, name: x.name, stars: x.stars, locality: x.locality, url: x.url, thumb: x.photos[0] ? x.photos[0].thumb : null, photos: x.photos.length },
-        link: link ? { ...link, hotel: catHotel(link.hotelId) } : null,
+        link: link ? { ...link, hotel: catHotel(link.hotelId), why: whyText(link, x) } : null,
       })),
     };
+  }
+
+  // Защо връзката е за проверка – на човешки език
+  function whyText(l, x) {
+    if (l.state !== 'check' || !l.why) return '';
+    if (l.why.startsWith('taken:')) {
+      const o = content.data.site[l.why.slice(6)];
+      return `Същият хотел от каталога вече е вързан с друга страница от сайта${o ? `: ${o.name} (${o.locality}, №${o.siteId})` : ''}. Изберете коя е вярната.`;
+    }
+    if (l.why === 'area') {
+      const h = catalog.get(l.hotelId);
+      return `Курортът е различен: на сайта ${x.locality}, в каталога ${h ? h.area : '?'}.`;
+    }
+    if (l.why === 'catalog') return 'Името съвпада само с непроверена връзка в каталога (при някой оператор) – възможно е и каталогът да е сбъркан.';
+    return 'Имената са близки, но не еднакви.';
   }
 
   function contentAction({ match, body, user }) {

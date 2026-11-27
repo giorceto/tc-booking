@@ -6,8 +6,23 @@
 //   blocked: ["<siteId>|H123", …]  – разкачени от човек, не се връзват пак автоматично
 const fs = require('fs');
 const path = require('path');
-const { fingerprint, nameScore, normArea } = require('../catalog/normalize');
+const { fingerprint, nameScore, normArea, cleanName } = require('../catalog/normalize');
 const { toLatin } = require('../admin/translit');
+
+// сходство на пълните имена (с общите думи) – за равенства: CRYSTAL BOUTIQUE ≠ CRYSTAL FAMILY COMFORT COLLECTION
+function fullSimilarity(a, b) {
+  const tri = (x) => {
+    const t = ` ${cleanName(x)} `;
+    const out = new Set();
+    for (let i = 0; i < t.length - 2; i++) out.add(t.slice(i, i + 3));
+    return out;
+  };
+  const A = tri(a);
+  const B = tri(b);
+  let n = 0;
+  for (const x of A) if (B.has(x)) n++;
+  return A.size + B.size ? (2 * n) / (A.size + B.size) : 0;
+}
 
 const AUTO = 0.92;
 const CHECK = 0.74;
@@ -20,6 +35,12 @@ const AREA_BG = {
   айвалък: 'AYVALIK', едремит: 'EDREMIT', чанаккале: 'CANAKKALE', сеферихисар: 'SEFERIHISAR', кападокия: 'KAPADOKYA',
   истанбул: 'ISTANBUL', чорлу: 'CORLU', текирдаг: 'TEKIRDAG', манавгат: 'SIDE', конаклъ: 'ALANYA', авсалар: 'ALANYA',
 };
+// Съседни курорти – границите при операторите и при сайта не съвпадат (Кушадасъ е в провинция Айдън,
+// при някои оператори IZMIR; Raymar и Alarcha са в Сиде на сайта, но ALANYA в каталога и т.н.)
+const NEAR = [['KUSADASI', 'IZMIR'], ['KUSADASI', 'AYDIN'], ['KUSADASI', 'DIDIM'], ['IZMIR', 'CESME'], ['SIDE', 'ALANYA'], ['SIDE', 'BELEK'], ['BELEK', 'ANTALYA'], ['ANTALYA', 'KEMER'], ['MARMARIS', 'DALAMAN'], ['DALAMAN', 'FETHIYE'], ['AYVALIK', 'EDREMIT']];
+const near = new Set(NEAR.flatMap(([a, b]) => [`${a}|${b}`, `${b}|${a}`]));
+const areaPenalty = (a, b) => (!a || !b || a === b ? 0 : near.has(`${a}|${b}`) ? 0.05 : 0.15);
+
 function siteArea(locality) {
   const s = String(locality || '').trim().toLowerCase();
   if (AREA_BG[s]) return AREA_BG[s];
@@ -122,30 +143,46 @@ class ContentStore {
       const area = siteArea(s.locality);
       let best = null;
       let bestScore = 0;
+      let why = '';
       for (const h of catalog.data.hotels) {
         if (blocked.has(`${s.siteId}|${h.id}`)) continue;
-        let sc = Math.max(...fp.get(h.id).map((x) => Math.min(x.max, nameScore(f, x.f))));
+        const scores = fp.get(h.id).map((x) => {
+          const raw = nameScore(f, x.f);
+          return { raw, sc: Math.min(x.max, raw) };
+        });
+        let sc = Math.max(...scores.map((x) => x.sc));
         if (sc < CHECK - 0.15) continue;
-        if (area && h.area && area !== h.area) sc -= 0.15;
+        const pen = areaPenalty(area, h.area);
+        sc -= pen;
         if (sc > bestScore) {
           bestScore = sc;
           best = h;
+          // защо не е сигурно (за прегледа в админа)
+          why = Math.max(...scores.map((x) => x.raw)) - pen >= AUTO && Math.max(...scores.map((x) => x.raw)) > sc + pen ? 'catalog' : pen ? 'area' : 'name';
         }
       }
-      found.push({ s, best, score: Math.round(bestScore * 100) / 100 });
+      // колко прилича на основното име на хотела в каталога – при равен резултат печели по-близкото
+      // (иначе AQI PEGASOS RESORT взима H „AQI PEGASOS ROYAL“ заради име от връзка към друг хотел)
+      const main = best ? nameScore(f, fp.get(best.id)[0].f) : 0;
+      const full = best ? fullSimilarity(s.name, best.name) : 0;
+      found.push({ s, best, score: Math.round(bestScore * 100) / 100, main, full, why });
     }
     // по-сигурните първи – ако два хотела от сайта сочат един и същ от каталога, вторият отива за проверка
-    found.sort((a, b) => b.score - a.score);
-    for (const { s, best, score } of found) {
+    found.sort((a, b) => b.score - a.score || b.main - a.main || b.full - a.full);
+    for (const { s, best, score, why } of found) {
       if (!best || score < CHECK) {
         delete this.data.links[s.siteId];
         stats.none++;
         continue;
       }
       let state = score >= AUTO ? 'auto' : 'check';
-      if (state === 'auto' && taken.has(best.id)) state = 'check';
+      let reason = state === 'check' ? why : '';
+      if (state === 'auto' && taken.has(best.id)) {
+        state = 'check';
+        reason = `taken:${taken.get(best.id).siteId}`; // друга страница от сайта вече е вързана към същия хотел
+      }
       if (state === 'auto') taken.set(best.id, { siteId: s.siteId, score });
-      this.data.links[s.siteId] = { hotelId: best.id, state, score };
+      this.data.links[s.siteId] = { hotelId: best.id, state, score, ...(reason ? { why: reason } : {}) };
       stats[state]++;
     }
     this.save();
@@ -157,14 +194,15 @@ class ContentStore {
     const l = this.data.links[siteId];
     if (!l) throw new Error('Няма такава връзка');
     // друг хотел от сайта, вързан към същия H, се разкача
-    for (const [sid, x] of Object.entries(this.data.links)) if (sid !== siteId && x.hotelId === l.hotelId && x.state !== 'check') this.data.links[sid] = { ...x, state: 'check' };
+    for (const [sid, x] of Object.entries(this.data.links)) if (sid !== siteId && x.hotelId === l.hotelId && x.state !== 'check') this.data.links[sid] = { ...x, state: 'check', why: `taken:${siteId}` };
     l.state = 'ok';
+    delete l.why;
     this.save();
   }
 
   link(siteId, hotelId) {
     if (!this.data.site[siteId]) throw new Error('Няма такъв хотел от сайта');
-    for (const [sid, x] of Object.entries(this.data.links)) if (sid !== siteId && x.hotelId === hotelId && x.state !== 'check') this.data.links[sid] = { ...x, state: 'check' };
+    for (const [sid, x] of Object.entries(this.data.links)) if (sid !== siteId && x.hotelId === hotelId && x.state !== 'check') this.data.links[sid] = { ...x, state: 'check', why: `taken:${siteId}` };
     this.data.blocked = this.data.blocked.filter((b) => b !== `${siteId}|${hotelId}`);
     this.data.links[siteId] = { hotelId, state: 'ok', score: 1 };
     this.save();
