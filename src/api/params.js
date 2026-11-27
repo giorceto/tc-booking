@@ -1,13 +1,7 @@
 // Проверка на входа от сайта (търсене и резервация).
 // Грешките са HttpError(400) с текст, който може да се покаже на клиента.
 
-class HttpError extends Error {
-  constructor(status, message, extra) {
-    super(message);
-    this.status = status;
-    this.extra = extra;
-  }
-}
+const { HttpError } = require('./http');
 
 const bad = (msg) => new HttpError(400, msg);
 

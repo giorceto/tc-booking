@@ -349,3 +349,34 @@ test('еднакви търсения, пуснати едновременно, 
   assert.deepStrictEqual(w.s.calls, { AAA: 1, BBB: 1 });
   assert.deepStrictEqual(a.hotels[0].options.map((o) => o.offerKey), b.hotels[0].options.map((o) => o.offerKey));
 });
+
+test('от сайта до админа: клиентът резервира, служителят вижда доставчика и потвърждава', async (t) => {
+  const { Users } = require('../src/auth');
+  const { createAdmin } = require('../src/admin/routes');
+  const w = world();
+  const users = new Users(path.join(w.dir, 'users.json'));
+  users.add('ana', 'много-тайна-парола');
+  const api = await start(w, { admin: createAdmin({ bookings: w.bookings, users, log: w.log }) });
+  t.after(() => w.close());
+
+  const r = await api(`/api/search?hotel=H1&date=${DATE}&nights=7&adults=2`);
+  const std = r.json.hotels[0].options.find((o) => o.roomGroup === 'Стандартна');
+  const b = await api('/api/booking', { method: 'POST', body: { offerKey: std.offerKey, expectedPrice: std.price, contact, guests: guests2 } });
+  assert.strictEqual(b.status, 201);
+
+  const login = await api('/admin/api/login', { method: 'POST', body: { user: 'ana', password: 'много-тайна-парола' } });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const list = await api('/admin/api/bookings?status=pending', { headers: { Cookie } });
+  assert.strictEqual(list.json.bookings[0].id, b.json.bookingId);
+  assert.strictEqual(list.json.bookings[0].opName, 'Bbb Tour');
+  assert.strictEqual(list.json.bookings[0].margin, 110); // 1210 − 1100
+
+  const d = await api(`/admin/api/bookings/${b.json.bookingId}`, { headers: { Cookie } });
+  assert.match(d.json.portalText, /Хотел: NAME TESTP \[TESTP\]/);
+  assert.match(d.json.portalText, /1\. PETROV IVAN/);
+  const c = await api(`/admin/api/bookings/${b.json.bookingId}/status`, { method: 'POST', body: { status: 'confirmed', supplierRef: 'X-1' }, headers: { Cookie } });
+  assert.strictEqual(c.json.status, 'confirmed');
+
+  // публичното API не пуска към админа
+  assert.strictEqual((await api('/admin/api/bookings')).status, 401);
+});

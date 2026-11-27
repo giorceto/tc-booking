@@ -1,6 +1,6 @@
 // Пуска Booking API:  npm start
 // Каталог: data/catalog.json (ако го има – копие от сървъра на TC Prices), иначе data/seed/catalog.json.
-// Резервации: data/bookings.json (не се качва в git).
+// Резервации: data/bookings.json, служители: data/users.json (не се качват в git).
 const fs = require('fs');
 const path = require('path');
 const Catalog = require('./catalog/catalog');
@@ -8,6 +8,8 @@ const { createSuppliers } = require('./suppliers');
 const { SearchEngine } = require('./engine/search');
 const { BookingStore } = require('./bookings/store');
 const { createServer } = require('./api/app');
+const { createAdmin } = require('./admin/routes');
+const { Users } = require('./auth');
 const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN } = require('./config');
 
 const dataFile = path.join(ROOT, 'data', 'catalog.json');
@@ -24,10 +26,15 @@ const log = {
   error: (...a) => console.error(stamp(), ...a),
 };
 
-const server = createServer({ engine, catalog, bookings, corsOrigin: CORS_ORIGIN, log });
+const users = new Users(path.join(ROOT, 'data', 'users.json'));
+const admin = createAdmin({ bookings, users, log });
+
+const server = createServer({ engine, catalog, bookings, admin, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела)`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
   log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
+  const n = users.list().length;
+  log.info(`  админ: http://${HOST}:${PORT}/admin/ (${n ? `${n} потребител${n > 1 ? 'я' : ''}` : 'няма потребители – node src/auth.js add <име>'})`);
 });

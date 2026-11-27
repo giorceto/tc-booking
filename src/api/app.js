@@ -11,12 +11,13 @@
 // Нищо в отговорите към клиента не издава доставчика: няма име/код на доставчика,
 // код на хотела при него, нетна цена или грешките по доставчици. Те отиват само в лога.
 const http = require('http');
-const { HttpError, parseSearch, parseBooking } = require('./params');
+const { parseSearch, parseBooking } = require('./params');
+const { HttpError, sendJson, readJson } = require('./http');
 
-const MAX_BODY = 32 * 1024;
 const DUPLICATE_MS = 10 * 60 * 1000; // повторно изпратена резервация (двоен клик) в този срок връща същата
 
-function createApp({ engine, catalog, bookings, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000 }) {
+// admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
+function createApp({ engine, catalog, bookings, admin, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000 }) {
   const allowed = new Set(String(corsOrigin).split(',').map((s) => s.trim()).filter(Boolean));
 
   // Хотел, който може да се търси: има връзка към поне един активен доставчик
@@ -34,7 +35,10 @@ function createApp({ engine, catalog, bookings, corsOrigin = '', log = console, 
 
   async function handler(req, res) {
     const url = new URL(req.url, 'http://x');
-    setCommonHeaders(req, res);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-store');
+    if (admin && (url.pathname === '/admin' || url.pathname.startsWith('/admin/'))) return admin(req, res, url);
+    setCorsHeaders(req, res); // CORS само за API-то на сайта, никога за админа
     if (req.method === 'OPTIONS') {
       res.writeHead(204).end();
       return;
@@ -62,9 +66,7 @@ function createApp({ engine, catalog, bookings, corsOrigin = '', log = console, 
     }
   }
 
-  function setCommonHeaders(req, res) {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'no-store');
+  function setCorsHeaders(req, res) {
     const origin = req.headers.origin;
     if (origin && allowed.has(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -281,44 +283,6 @@ function createApp({ engine, catalog, bookings, corsOrigin = '', log = console, 
   };
 
   return handler;
-}
-
-function sendJson(res, status, data) {
-  const body = JSON.stringify(data);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
-  res.end(body);
-}
-
-function readJson(req) {
-  return new Promise((resolve, reject) => {
-    if (!/application\/json/.test(req.headers['content-type'] || '')) {
-      reject(new HttpError(415, 'Очаква се JSON (Content-Type: application/json)'));
-      req.resume();
-      return;
-    }
-    let size = 0;
-    let over = false;
-    const chunks = [];
-    req.on('data', (c) => {
-      if (over) return;
-      size += c.length;
-      if (size > MAX_BODY) {
-        over = true;
-        reject(new HttpError(413, 'Заявката е твърде голяма'));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on('end', () => {
-      if (over) return;
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
-      } catch {
-        reject(new HttpError(400, 'Невалиден JSON'));
-      }
-    });
-    req.on('error', reject);
-  });
 }
 
 function createServer(opts) {

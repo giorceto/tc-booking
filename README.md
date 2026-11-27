@@ -8,7 +8,8 @@
 - работещите модули за връзка;
 - каталога с вързаните хотели;
 - нов модул за търсене, който крие доставчика;
-- Booking API за сайта: търсене (и стрийминг), проверка на цената, заявка за резервация.
+- Booking API за сайта: търсене (и стрийминг), проверка на цената, заявка за резервация;
+- админ за служителите: резервации с доставчика и нетната цена, потвърждаване.
 
 ## Доставчици
 
@@ -44,6 +45,11 @@ src/
     params.js            проверка на входа от сайта
   bookings/
     store.js             резервации в data/bookings.json (за потвърждение -> потвърдена/отказана)
+  admin/
+    routes.js            админ на /admin/: вход, резервации, статус, текст за портала на доставчика
+    static/              страницата (HTML/JS/CSS без библиотеки)
+    translit.js          кирилица -> латиница (паспортния закон) за имената на гостите
+  auth.js                служители: node src/auth.js add <име>
   server.js              npm start
   export/
     pricexml.js          договор Summer Tour → XML (формат IRE-SEAMAR)
@@ -62,7 +68,8 @@ docs/                    документация
 cp .env.example .env      # попълнете USER/PASS – .env не се качва в git
 npm test                  # тестове без мрежа
 npm run selftest          # вход при всички оператори
-npm start                 # Booking API на http://127.0.0.1:3000/api/health
+node src/auth.js add ana  # служител за админа (пита за паролата)
+npm start                 # API: http://127.0.0.1:3000/api/health, админ: http://127.0.0.1:3000/admin/
 node scripts/search.js hotel H1 2027-06-15 7 2
 node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal показва и доставчика
 ```
@@ -82,4 +89,5 @@ node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal пок
 | [docs/pricing-rules.md](docs/pricing-rules.md) | какво е цената, EB, деца, наличност, избор на най-добра |
 | [docs/booking-architecture.md](docs/booking-architecture.md) | предложение за резервационната система |
 | [docs/api.md](docs/api.md) | Booking API за сайта – адреси, параметри, отговори, грешки |
+| [docs/admin.md](docs/admin.md) | админ – потребители, работа с резервация, сигурност, Caddy |
 | [docs/lessons-learned.md](docs/lessons-learned.md) | капани и грешки, които вече сме минали |

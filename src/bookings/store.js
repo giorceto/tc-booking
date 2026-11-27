@@ -12,6 +12,16 @@ const STATUSES = ['pending', 'confirmed', 'rejected', 'cancelled'];
 // rejected  – доставчикът я е отказал / няма места
 // cancelled – анулирана
 
+const STATUS_LABEL = { pending: 'за потвърждение', confirmed: 'потвърдена', rejected: 'отказана', cancelled: 'анулирана' };
+
+// Разрешени смени на статуса
+const NEXT = {
+  pending: ['confirmed', 'rejected', 'cancelled'],
+  confirmed: ['cancelled'],
+  rejected: ['pending'], // повторен опит (напр. при друг доставчик)
+  cancelled: [],
+};
+
 class BookingStore {
   constructor(file) {
     this.file = file;
@@ -46,21 +56,51 @@ class BookingStore {
     return this.data.bookings.find((b) => b.id === id) || null;
   }
 
-  list({ status } = {}) {
-    const all = status ? this.data.bookings.filter((b) => b.status === status) : this.data.bookings;
+  // Най-новите първи. q – търсене по номер, име/имейл/телефон, гост, хотел, номер при доставчика
+  list({ status, q } = {}) {
+    let all = status ? this.data.bookings.filter((b) => b.status === status) : this.data.bookings;
+    const s = String(q || '').trim().toLowerCase();
+    if (s) {
+      all = all.filter((b) =>
+        [b.id, b.contact.name, b.contact.email, b.contact.phone, b.public.hotelName, b.internal.supplierRef, ...b.guests.map((g) => `${g.firstName} ${g.lastName}`)]
+          .filter(Boolean)
+          .some((x) => String(x).toLowerCase().includes(s))
+      );
+    }
     return [...all].reverse();
   }
 
+  counts() {
+    const out = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+    for (const b of this.data.bookings) out[b.status] = (out[b.status] || 0) + 1;
+    return out;
+  }
+
+  // Смяна на статуса. За „потвърдена“ трябва номерът на резервацията при доставчика.
   setStatus(id, status, { by = '', supplierRef, comment } = {}) {
     if (!STATUSES.includes(status)) throw new Error(`Непознат статус ${status}`);
     const b = this.get(id);
     if (!b) throw new Error('Няма такава резервация');
+    if (!NEXT[b.status].includes(status)) throw new Error(`Резервацията е „${STATUS_LABEL[b.status]}“ и не може да стане „${STATUS_LABEL[status]}“`);
+    const ref = supplierRef == null ? '' : String(supplierRef).trim();
+    if (status === 'confirmed' && !ref && !b.internal.supplierRef) throw new Error('Попълнете номера на резервацията при доставчика');
     b.status = status;
-    if (supplierRef !== undefined) b.internal.supplierRef = supplierRef; // номер на резервацията при доставчика
-    b.history.push({ at: new Date().toISOString(), status, by, ...(comment ? { comment } : {}) });
+    if (ref) b.internal.supplierRef = ref; // номер на резервацията при доставчика
+    b.history.push({ at: new Date().toISOString(), status, by, ...(ref ? { supplierRef: ref } : {}), ...(comment ? { comment: String(comment) } : {}) });
+    this.save();
+    return b;
+  }
+
+  // Вътрешна бележка, без смяна на статуса
+  addComment(id, comment, { by = '' } = {}) {
+    const b = this.get(id);
+    if (!b) throw new Error('Няма такава резервация');
+    const c = String(comment || '').trim();
+    if (!c) throw new Error('Празен коментар');
+    b.history.push({ at: new Date().toISOString(), by, comment: c });
     this.save();
     return b;
   }
 }
 
-module.exports = { BookingStore, STATUSES };
+module.exports = { BookingStore, STATUSES, STATUS_LABEL, NEXT };

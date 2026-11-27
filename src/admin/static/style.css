@@ -1,0 +1,136 @@
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --text: #1d2330;
+  --muted: #6b7385;
+  --line: #e2e5eb;
+  --accent: #1f6feb;
+  --accent-text: #ffffff;
+  --sel: #eaf1fe;
+  --pending-bg: #fff4d6; --pending: #8a5a00;
+  --confirmed-bg: #dcf5e4; --confirmed: #17663a;
+  --rejected-bg: #fde4e1; --rejected: #a3261b;
+  --cancelled-bg: #eceef2; --cancelled: #535a68;
+  --warn: #b7791f;
+  --danger: #c0392b;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c2028; --text: #e6e9ef; --muted: #98a0b0; --line: #2d333e;
+    --accent: #4c8dff; --sel: #22304a;
+    --pending-bg: #3d3115; --pending: #f3c96b;
+    --confirmed-bg: #173823; --confirmed: #7fd8a0;
+    --rejected-bg: #42201d; --rejected: #f3958b;
+    --cancelled-bg: #2a2e37; --cancelled: #aab1bf;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.mono { font-family: var(--mono); }
+.pre { white-space: pre-wrap; }
+.spacer { flex: 1; }
+.nowrap { white-space: nowrap; }
+.more { padding: 8px 12px; margin: 0; }
+.loading, .empty { padding: 24px; }
+.offscreen { position: fixed; left: -9999px; }
+
+button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: .6; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.warn { border-color: var(--warn); color: var(--warn); }
+button.danger { border-color: var(--danger); color: var(--danger); }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; }
+button.small-btn { padding: 3px 10px; font-size: 12px; }
+input, textarea { font: inherit; width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
+textarea { resize: vertical; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* вход */
+.login { max-width: 340px; margin: 12vh auto; padding: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 12px; }
+.login h1 { margin: 0; font-size: 22px; }
+.login p { margin: 0; }
+.login label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.error { color: var(--danger); min-height: 1.4em; }
+
+/* горна лента */
+.top { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 20px; }
+.toolbar input { max-width: 340px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab { border-radius: 999px; padding: 5px 12px; }
+.tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.tab .count { margin-left: 6px; font-size: 12px; opacity: .75; }
+.tab.attention:not(.active) .count { background: var(--pending-bg); color: var(--pending); border-radius: 999px; padding: 0 6px; opacity: 1; font-weight: 600; }
+
+/* списък + детайл */
+.grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 0 20px 24px; align-items: start; }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.list, .detail { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: auto; }
+.detail { padding: 16px 18px; position: sticky; top: 12px; max-height: calc(100vh - 24px); }
+@media (max-width: 1100px) { .detail { position: static; max-height: none; } }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel); position: sticky; top: 0; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--bg); }
+tbody tr.sel { background: var(--sel); }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.s-pending { background: var(--pending-bg); color: var(--pending); }
+.s-confirmed { background: var(--confirmed-bg); color: var(--confirmed); }
+.s-rejected { background: var(--rejected-bg); color: var(--rejected); }
+.s-cancelled { background: var(--cancelled-bg); color: var(--cancelled); }
+.margin { color: var(--confirmed); }
+.flag { display: inline-block; margin-top: 3px; font-size: 11px; color: var(--warn); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; }
+
+.d-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.d-head h2 { margin: 0; font-size: 18px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 12px; }
+.cards .card { margin-top: 0; }
+.cards { margin-top: 12px; }
+.card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+.card-head h3 { margin: 0; }
+.card.internal { border-style: dashed; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+.portal { margin: 8px 0 0; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; background: var(--bg); padding: 10px; border-radius: 6px; }
+.guests { margin: 0; padding-left: 20px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.card input, .card textarea { margin-top: 6px; }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.history li { border-left: 2px solid var(--line); padding-left: 10px; }
+
+.toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 10; }
+.toast { padding: 10px 16px; border-radius: 8px; background: var(--text); color: var(--bg); box-shadow: 0 4px 16px rgba(0, 0, 0, .2); }
+.toast.bad { background: var(--danger); color: #fff; }
+
+@media (max-width: 640px) {
+  .top, .toolbar { padding-left: 12px; padding-right: 12px; }
+  .grid { padding: 0 12px 16px; }
+  .toolbar input { max-width: none; }
+  /* на телефон всеки ред е карта: номер | статус, хотел, дати | цена, доставчик */
+  thead { display: none; }
+  table, tbody { display: block; }
+  tbody tr { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "id st" "hotel hotel" "dates price" "op op"; gap: 4px 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  td { display: block; border: 0; padding: 0; }
+  td:nth-child(1) { grid-area: id; }
+  td:nth-child(2) { grid-area: hotel; font-weight: 600; }
+  td:nth-child(3) { grid-area: dates; }
+  td:nth-child(4) { display: none; }
+  td:nth-child(5) { grid-area: price; }
+  td:nth-child(6) { grid-area: op; }
+  td:nth-child(7) { grid-area: st; text-align: right; }
+}
