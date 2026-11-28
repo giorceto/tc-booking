@@ -100,7 +100,7 @@ function header() {
   } }, label);
   return h('header', { class: 'top' },
     h('strong', null, 'TC Booking'),
-    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта')),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('areas', 'Курорти')),
     h('span', { class: 'spacer' }),
     h('span', { class: 'muted' }, state.user),
     h('button', { class: 'link', onclick: logout }, 'Изход'));
@@ -110,6 +110,7 @@ function renderMain() {
   stopRefresh();
   if (state.view === 'content') return renderContentView();
   if (state.view === 'catalog') return renderCatalogView();
+  if (state.view === 'areas') return renderAreasView();
   $tabs = h('nav', { class: 'tabs', 'aria-label': 'Статус' });
   $search = h('input', { type: 'search', placeholder: 'Търсене: номер, име, имейл, хотел…', value: state.q, oninput: debounce(() => {
     state.q = $search.value;
@@ -527,6 +528,35 @@ function movePicker(x, l, onPick) {
     find();
   });
   return h('div', { class: 'picker' }, input, results);
+}
+
+// ---------- курорти: кои се показват на сайта ----------
+const AREA_BG = { ANTALYA: 'Анталия', BELEK: 'Белек', SIDE: 'Сиде', ALANYA: 'Алания', KEMER: 'Кемер', BODRUM: 'Бодрум', MARMARIS: 'Мармарис', FETHIYE: 'Фетие', DALAMAN: 'Даламан', KUSADASI: 'Кушадасъ', DIDIM: 'Дидим', CESME: 'Чешме', IZMIR: 'Измир', AYVALIK: 'Айвалък', ISTANBUL: 'Истанбул', KAPADOKYA: 'Кападокия' };
+
+async function renderAreasView() {
+  const list = h('section', { class: 'clist' }, h('p', { class: 'muted empty' }, 'Зареждане…'));
+  $app.replaceChildren(header(),
+    h('p', { class: 'muted small hint top-hint' }, 'Скритите курорти не се показват на сайта и за тях не се пращат заявки към операторите. Промяната важи веднага.'),
+    list);
+  try {
+    const r = await api('api/areas');
+    list.replaceChildren(h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
+      h('input', { type: 'checkbox', checked: !a.hidden, onchange: async (e) => {
+        const show = e.target.checked;
+        try {
+          await api(`api/areas/${encodeURIComponent(a.area)}`, { hidden: !show });
+          toast(`${AREA_BG[a.area] || a.area}: ${show ? 'показва се на сайта' : 'скрит'}`);
+          renderAreasView();
+        } catch (x) {
+          e.target.checked = !show;
+          if (x.message !== '401') toast(x.message, 'bad');
+        }
+      } }),
+      h('span', null, h('strong', null, AREA_BG[a.area] || a.area), h('small', { class: 'muted' }, ` ${a.area} · ${a.hotels} хотела`)),
+      h('span', { class: `badge ${a.hidden ? 's-cancelled' : 's-confirmed'}` }, a.hidden ? 'скрит' : 'на сайта')))));
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
 }
 
 // ---------- общи ----------

@@ -17,6 +17,7 @@ const http = require('http');
 const path = require('path');
 const { parseSearch, parseBooking } = require('./params');
 const { HttpError, sendJson, readJson, clientIp, RateLimit } = require('./http');
+const { normArea } = require('../catalog/normalize');
 
 // Страницата за търсене и резервация: / (busrent.eu/book/), само относителни адреси
 const SITE_DIR = path.join(__dirname, '..', 'site', 'static');
@@ -53,7 +54,8 @@ const LIMITS = {
 
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
 // content – снимки и описания от сайта (src/content/store.js); siteUrl – адресът на сайта (за CSP)
-function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', heroImage, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+// settings – скрити курорти (src/settings.js): не се показват и не се търсят при операторите
+function createApp({ engine, catalog, bookings, admin, content, settings, siteUrl = '', heroImage, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
   const SITE_HEADERS = siteHeaders(siteUrl);
   const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage);
   // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите
@@ -65,7 +67,8 @@ function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', he
   const limiters = Object.fromEntries(Object.entries({ ...LIMITS, ...limits }).map(([k, [max, ms]]) => [k, new RateLimit(max, ms)]));
 
   // Хотел, който може да се търси: има връзка към поне един активен доставчик
-  const searchable = (h) => engine.activeOps().some((op) => engine.trusted(h.links[op]));
+  const hiddenArea = (a) => Boolean(settings) && settings.isHidden(a);
+  const searchable = (h) => !hiddenArea(h.area) && engine.activeOps().some((op) => engine.trusted(h.links[op]));
   const publicHotel = (h) => ({ hotelId: h.id, name: h.name, area: h.area, stars: h.stars || null });
 
   const routes = [
@@ -144,7 +147,7 @@ function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', he
   // Снимки и описание на хотел (от нашия сайт). Без съдържание – само името.
   function hotelInfo({ match }) {
     const h = catalog.get(match[1]);
-    if (!h) throw new HttpError(404, 'Няма такъв хотел');
+    if (!h || hiddenArea(h.area)) throw new HttpError(404, 'Няма такъв хотел');
     const c = content && content.full(h.id);
     return { ...publicHotel(h), photos: [], sections: [], ...(c || {}) };
   }
@@ -164,7 +167,9 @@ function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', he
   // ---------- търсене ----------
   async function search({ req, res, query }) {
     const { area, hotel, params } = parseSearch(query);
-    if (hotel && !catalog.get(hotel)) throw new HttpError(404, 'Няма такъв хотел');
+    if (hotel && (!catalog.get(hotel) || hiddenArea(catalog.get(hotel).area))) throw new HttpError(404, 'Няма такъв хотел');
+    // скрит курорт – и без заявки към операторите
+    if (area && hiddenArea(normArea(area))) throw new HttpError(404, 'Няма такъв курорт');
     const stream = query.stream === '1' || /text\/event-stream/.test(req.headers.accept || '');
     const run = (opts) => (hotel ? engine.searchHotel(hotel, params, opts) : engine.searchArea(area, params, opts));
     const t0 = Date.now();
@@ -246,7 +251,7 @@ function createApp({ engine, catalog, bookings, admin, content, siteUrl = '', he
     }
     if (r.status === 'STOP') throw new HttpError(410, 'Няма свободни места за тази оферта. Моля, изберете друга.', { reason: 'stop' });
     const h = catalog.get(r.entry.hotelId);
-    if (!h) throw new HttpError(410, 'Тази оферта вече не е налична. Моля, изберете друга.', { reason: 'gone' });
+    if (!h || hiddenArea(h.area)) throw new HttpError(410, 'Тази оферта вече не е налична. Моля, изберете друга.', { reason: 'gone' });
     return { r, h, pub: engine.publicView(r.offer, r.entry.params) };
   }
 

@@ -31,7 +31,7 @@ const pageHeaders = (siteUrl) => ({
 });
 
 // content/catalog – по желание: преглед на снимките от сайта и връзките им с каталога
-function createAdmin({ bookings, users, content, catalog, catalogJob, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+function createAdmin({ bookings, users, content, catalog, catalogJob, settings, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
   const PAGE_HEADERS = pageHeaders(siteUrl);
   const files = Object.fromEntries(Object.entries(STATIC).map(([url, [f, type]]) => [url, { body: fs.readFileSync(path.join(STATIC_DIR, f)), type }]));
 
@@ -47,6 +47,8 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, opNames = 
     ['POST', /^\/admin\/api\/content\/(\d+)\/(confirm|unlink|link)$/, contentAction],
     ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
     ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
+    ['GET', /^\/admin\/api\/areas$/, areaList],
+    ['POST', /^\/admin\/api\/areas\/([A-Z ]{2,40})$/, areaSet],
     ['GET', /^\/admin\/api\/catalog\/refresh$/, refreshStatus],
     ['POST', /^\/admin\/api\/catalog\/refresh$/, refreshStart],
     ['POST', /^\/admin\/api\/catalog\/(H\d+)\/(confirm|split|move)$/, catalogAction],
@@ -276,6 +278,24 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, opNames = 
         why: linkWhy(h, op, l),
       })),
     };
+  }
+
+  // ---------- курорти: кои се показват на сайта ----------
+  function areaList() {
+    if (!catalog || !settings) throw new HttpError(404, 'Няма настройки');
+    const count = new Map();
+    for (const h of catalog.data.hotels) if (h.area) count.set(h.area, (count.get(h.area) || 0) + 1);
+    const list = [...count].filter(([area, n]) => n >= 3 || settings.isHidden(area)).map(([area, hotels]) => ({ area, hotels, hidden: settings.isHidden(area) }));
+    return { areas: list.sort((x, y) => y.hotels - x.hotels) };
+  }
+
+  function areaSet({ match, body, user }) {
+    if (!settings) throw new HttpError(404, 'Няма настройки');
+    const area = decodeURIComponent(match[1]);
+    const hidden = Boolean(body && body.hidden);
+    settings.setHidden(area, hidden);
+    log.info(`[admin] ${user}: курорт ${area} ${hidden ? 'скрит' : 'показан'} на сайта`);
+    return { area, hidden };
   }
 
   // Обновяване от операторите (нощно; оттук – на ръка). Върви във фона, страницата пита за състоянието.

@@ -207,3 +207,57 @@ test('админ: обновяване на каталога на ръка – �
   assert.deepStrictEqual(st, { running: false, last: { at: 'x', ops: {} } });
   assert.strictEqual(runs, 1);
 });
+
+test('скрит курорт (Истанбул): не се показва, не се търси при операторите; от админа се пуска', async (t) => {
+  const { Settings } = require('../src/settings');
+  const { SearchEngine } = require('../src/engine/search');
+  const dir = tmp();
+  const f = path.join(dir, 'catalog.json');
+  fs.writeFileSync(f, JSON.stringify({ hotels: [
+    { id: 'H1', name: 'BOSPHORUS PALACE', area: 'ISTANBUL', links: { AAA: { code: 'BP', name: 'BOSPHORUS PALACE', state: 'ok' } } },
+    { id: 'H2', name: 'SIDE BEACH', area: 'SIDE', links: { AAA: { code: 'SB', name: 'SIDE BEACH', state: 'ok' } } },
+    { id: 'H3', name: 'SIDE PARK', area: 'SIDE', links: { AAA: { code: 'SP', name: 'SIDE PARK', state: 'ok' } } },
+    { id: 'H4', name: 'SIDE SUN', area: 'SIDE', links: { AAA: { code: 'SS', name: 'SIDE SUN', state: 'ok' } } },
+  ], blocked: [], nextId: 5 }));
+  const catalog = new Catalog(f);
+  let calls = 0;
+  const offer = (code) => ({ hotelCode: code, room: 'STANDARD ROOM', roomCode: 'STD', board: 'AI', boardName: 'AI', total: 500, currency: 'EUR', status: 'OK' });
+  const suppliers = { AAA: { type: 'sejour', search: async ({ hotel }) => (calls++, { offers: [offer(hotel)] }), regions: async () => [{ Code: 'IST', Name: 'ISTANBUL' }], searchRegion: async () => (calls++, [offer('BP')]), normalize: (o) => o } };
+  const engine = new SearchEngine({ catalog, suppliers, dataDir: dir });
+  const settings = new Settings(path.join(dir, 'settings.json')); // по подразбиране: Истанбул скрит
+  const users = new Users(path.join(dir, 'u.json'));
+  users.add('ana', 'много-тайна-парола');
+  const quiet = { info() {}, warn() {}, error() {} };
+  const admin = createAdmin({ bookings: new BookingStore(path.join(dir, 'b.json')), users, catalog, settings, log: quiet });
+  const server = createServer({ engine, catalog, bookings: new BookingStore(path.join(dir, 'b2.json')), admin, settings, log: quiet });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const date = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const get = async (p, headers) => {
+    const r = await fetch(base + p, { headers });
+    return { status: r.status, j: await r.json().catch(() => null) };
+  };
+
+  assert.deepStrictEqual((await get('/api/areas')).j.areas.map((a) => a.area), ['SIDE']);
+  assert.deepStrictEqual((await get('/api/hotels?q=bosphorus')).j.hotels, []);
+  assert.strictEqual((await get(`/api/search?area=istanbul&date=${date}`)).status, 404);
+  assert.strictEqual((await get(`/api/search?hotel=H1&date=${date}`)).status, 404);
+  assert.strictEqual((await get('/api/hotel/H1')).status, 404);
+  assert.strictEqual(calls, 0, 'никакви заявки към операторите за скрития курорт');
+
+  // от админа – пускаме Истанбул
+  const login = await fetch(base + '/admin/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: 'ana', password: 'много-тайна-парола' }) });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const list = (await get('/admin/api/areas', { Cookie })).j.areas;
+  assert.deepStrictEqual(list.find((a) => a.area === 'ISTANBUL'), { area: 'ISTANBUL', hotels: 1, hidden: true }, 'скритият се вижда в админа, макар и с 1 хотел');
+  const r = await fetch(base + '/admin/api/areas/ISTANBUL', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie }, body: JSON.stringify({ hidden: false }) });
+  assert.deepStrictEqual(await r.json(), { area: 'ISTANBUL', hidden: false });
+  assert.deepStrictEqual((await get('/api/areas')).j.areas.map((a) => a.area).sort(), ['ISTANBUL', 'SIDE']);
+  assert.strictEqual((await get(`/api/search?hotel=H1&date=${date}`)).status, 200);
+  assert.ok(calls > 0);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).hiddenAreas, [], 'записано');
+});

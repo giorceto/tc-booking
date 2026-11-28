@@ -12,6 +12,7 @@ const { createAdmin } = require('./admin/routes');
 const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
 const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
+const { Settings } = require('./settings');
 const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL, HERO_IMAGE, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
@@ -27,6 +28,7 @@ const suppliers = createSuppliers();
 const engine = new SearchEngine({ catalog, suppliers, markupPct: MARKUP_PCT, cacheMin: CACHE_MIN });
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
 const content = new ContentStore(path.join(ROOT, 'data', 'content.json')); // npm run import-site
+const settings = new Settings(path.join(ROOT, 'data', 'settings.json')); // скрити курорти – от админа
 
 const stamp = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Sofia' });
 const log = {
@@ -59,9 +61,9 @@ const catalogJob = {
 scheduleDaily(CATALOG_TIME, () => catalogJob.run());
 
 const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
-const admin = createAdmin({ bookings, users, content, catalog, catalogJob, opNames, siteUrl: SITE_URL, log });
+const admin = createAdmin({ bookings, users, content, catalog, catalogJob, settings, opNames, siteUrl: SITE_URL, log });
 
-const server = createServer({ engine, catalog, bookings, admin, content, siteUrl: SITE_URL, heroImage: HERO_IMAGE, corsOrigin: CORS_ORIGIN, log });
+const server = createServer({ engine, catalog, bookings, admin, content, settings, siteUrl: SITE_URL, heroImage: HERO_IMAGE, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела, ${catalog.review().length} връзки за проверка – не се ползват за цени)`);
@@ -69,6 +71,7 @@ server.listen(PORT, HOST, () => {
   log.info(`  каталог: обновяване от операторите всяка нощ в ${CATALOG_TIME}${catalogJob.last ? `, последно ${catalogJob.last.at}` : ''}`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
   log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
+  if (settings.hidden.size) log.info(`  скрити курорти (админ → Курорти): ${[...settings.hidden].join(', ')}`);
   const cc = content.counts();
   log.info(`  снимки от сайта: ${cc.linked} хотела${cc.check ? `, ${cc.check} за проверка` : ''}${cc.linked + cc.check + cc.none ? '' : ' – npm run import-site'}`);
   const n = users.list().length;
