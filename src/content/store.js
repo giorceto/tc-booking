@@ -8,6 +8,16 @@ const fs = require('fs');
 const path = require('path');
 const { fingerprint, nameScore, normArea, cleanName } = require('../catalog/normalize');
 const { toLatin } = require('../admin/translit');
+const { amenities } = require('./amenities');
+
+// удобствата се смятат веднъж за запис (сменят се само при нов внос)
+const amenityCache = new WeakMap();
+const amenitiesOf = (s) => {
+  if (!amenityCache.has(s)) amenityCache.set(s, amenities(s.sections, s.name));
+  return amenityCache.get(s);
+};
+// за картите в резултатите – най-важните (плаж, басейни, деца, СПА); Wi-Fi и паркинг са навсякъде
+const CARD_AMENITIES = ['adults', 'sea', 'beach', 'sand', 'slides', 'kids', 'pool', 'indoor', 'spa', 'alacarte', 'animation'];
 
 // сходство на пълните имена (с общите думи) – за равенства: CRYSTAL BOUTIQUE ≠ CRYSTAL FAMILY COMFORT COLLECTION
 function fullSimilarity(a, b) {
@@ -100,7 +110,9 @@ class ContentStore {
     this.maybeReload();
     const s = this.byHotel.get(hotelId);
     if (!s) return null;
-    return { image: s.photos[0] ? s.photos[0].thumb : null, photos: s.photos.length, rating: s.rating, reviews: s.reviews, siteUrl: s.url };
+    const am = amenitiesOf(s);
+    const top = CARD_AMENITIES.map((k) => am.find((a) => a.key === k)).filter(Boolean).slice(0, 4);
+    return { image: s.photos[0] ? s.photos[0].thumb : null, photos: s.photos.length, rating: s.rating, reviews: s.reviews, siteUrl: s.url, amenities: top };
   }
 
   // Всичко за страницата/прозореца на хотела
@@ -108,7 +120,7 @@ class ContentStore {
     this.maybeReload();
     const s = this.byHotel.get(hotelId);
     if (!s) return null;
-    return { photos: s.photos, sections: s.sections, rating: s.rating, reviews: s.reviews, siteUrl: s.url, lat: s.lat, lon: s.lon };
+    return { photos: s.photos, sections: s.sections, amenities: amenitiesOf(s), rating: s.rating, reviews: s.reviews, siteUrl: s.url, lat: s.lat, lon: s.lon };
   }
 
   // ---------- внос ----------

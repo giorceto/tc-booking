@@ -33,6 +33,42 @@ const AREA_BG = {
 };
 const areaName = (a) => AREA_BG[a] || (a ? a.charAt(0) + a.slice(1).toLowerCase() : '');
 
+// Икони на удобствата – тънки линии 24×24 (пътищата са постоянни, не идват отвън)
+const ICONS = {
+  beach: 'M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9z M12 12v9 M7 21h10',
+  sea: 'M2 10c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2 M2 15c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2 M2 20c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2',
+  sand: 'M3 18c4-4 14-4 18 0 M12 4v4 M6 6l2 2 M18 6l-2 2 M8 13a4 4 0 0 1 8 0',
+  pool: 'M8 3v11 M15 3v11 M8 7h7 M8 11h7 M2 17c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2 M2 21c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2',
+  indoor: 'M3 10l9-6 9 6 M5 9v4 M19 9v4 M3 16c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2 M3 20c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2',
+  slides: 'M5 21V6a2 2 0 0 1 4 0 M9 6c4 1 4 6 7 9s3 4 5 4 M3 21h18',
+  spa: 'M12 20c-5 0-8-3-8-8 4 0 8 3 8 8z M12 20c5 0 8-3 8-8-4 0-8 3-8 8z M12 20c-2-4-2-9 0-13 2 4 2 9 0 13z',
+  steam: 'M8 3c-1 2 1 3 0 5 M12 3c-1 2 1 3 0 5 M16 3c-1 2 1 3 0 5 M4 12h16v8H4z',
+  fitness: 'M6 7v10 M3 9v6 M18 7v10 M21 9v6 M6 12h12',
+  kids: 'M12 3a5 6 0 0 1 5 6c0 4-3 6-5 6s-5-2-5-6a5 6 0 0 1 5-6z M12 15l-1 2h2z M12 17c0 2-2 2-2 4',
+  animation: 'M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16l-5.4 3.2 1.3-6-4.5-4 6-.6z',
+  alacarte: 'M7 3v8 M5 3v5a2 2 0 0 0 4 0V3 M7 11v10 M17 3c-2 1-3 4-3 7h3v11',
+  wifi: 'M2 9a15 15 0 0 1 20 0 M5 12.5a10 10 0 0 1 14 0 M8.5 16a5 5 0 0 1 7 0 M12 19.5h.01',
+  tennis: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M5.6 5.6c3 3 3 9.8 0 12.8 M18.4 5.6c-3 3-3 9.8 0 12.8',
+  watersports: 'M12 3v13 M12 4l7 11h-7 M12 7l-6 8h6 M3 19c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 2-1',
+  golf: 'M8 21V3l9 4-9 4 M4 21h9',
+  disco: 'M9 18V5l11-2v13 M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M17 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  adults: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M8 9v6 M12 9h3l-3 6',
+  accessible: 'M12 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z M11 8l1 6h5l2 5 M11 11h5 M9 11.5a5 5 0 1 0 6 6',
+  parking: 'M5 3h14v18H5z M9 17V7h4a3 3 0 0 1 0 6H9',
+};
+function icon(key, cls = 'ai') {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', cls);
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', ICONS[key] || ICONS.animation);
+  svg.append(p);
+  return svg;
+}
+const amenList = (list, cls) => h('ul', { class: cls }, list.map((a) => h('li', null, icon(a.key), a.label)));
+
 // ---------- състояние ----------
 const S = {
   areas: [],
@@ -525,7 +561,8 @@ function hotelCard(x) {
       h('div', null,
         h('h3', null, h('button', { type: 'button', class: 'hname', onclick: open }, x.name), x.stars ? h('span', { class: 'stars', 'aria-label': `${x.stars} звезди` }, ' ', '★'.repeat(x.stars)) : null),
         h('div', { class: 'area' }, areaName(x.area),
-          x.rating ? h('span', { class: 'rating', title: `${x.reviews} отзива` }, ` · ★ ${x.rating.toFixed(1)}`, h('small', null, ` (${x.reviews})`)) : null)),
+          x.rating ? h('span', { class: 'rating', title: `${x.reviews} отзива` }, ` · ★ ${x.rating.toFixed(1)}`, h('small', null, ` (${x.reviews})`)) : null),
+        x.amenities && x.amenities.length ? amenList(x.amenities, 'amen') : null),
       h('div', { class: 'from' }, h('small', null, 'от'), h('strong', null, money(x.from, x.currency)), h('small', null, `за ${plural(S.params.nights, 'нощувка', 'нощувки')}`))),
     h('ul', { class: 'options' }, opts.map((o) => h('li', null,
       h('div', { class: 'room' },
@@ -677,7 +714,8 @@ function renderHotelPage() {
         h('ul', { class: 'highlights' },
           boards.length ? h('li', null, h('strong', null, 'Изхранване: '), boards.join(', ')) : null,
           sec(/Плаж/i) ? h('li', null, h('strong', null, 'Плаж: '), firstSentence(sec(/Плаж/i).text)) : null,
-          sec(/Разположение/i) ? h('li', null, h('strong', null, 'Разположение: '), firstSentence(sec(/Разположение/i).text)) : null)),
+          sec(/Разположение/i) ? h('li', null, h('strong', null, 'Разположение: '), firstSentence(sec(/Разположение/i).text)) : null),
+        amenitiesBlock(info)),
       h('aside', { class: 'price-box' },
         best ? [h('small', { class: 'muted' }, 'от'), h('div', { class: 'big' }, money(best.price, best.currency)), h('small', { class: 'muted' }, `общо за ${plural(p.nights, 'нощувка', 'нощувки')}, ${pax(p.adults, p.childAges.length)}`)]
           : h('small', { class: 'muted' }, S.done ? 'Няма свободни стаи за тези дати' : 'Търсим цени…'),
@@ -701,6 +739,18 @@ function renderHotelPage() {
         h('li', null, 'Заявката не е плащане. Проверяваме наличността при хотела и се свързваме с вас до края на работния ден.'),
         h('li', null, 'Стаите „по запитване“ се потвърждават допълнително.'),
         h('li', null, 'Имената на гостите трябва да са както в паспорта.'))));
+}
+
+// Удобствата от описанието: първите 8, „Всички удобства“ разгъва
+function amenitiesBlock(info) {
+  const list = (info && info.amenities) || [];
+  if (!list.length) return null;
+  const all = S.amenAll === S.hotelId;
+  return h('div', { class: 'amenities' },
+    h('h2', null, 'Удобства'),
+    amenList(all ? list : list.slice(0, 8), 'amen-grid'),
+    list.length > 8 ? h('button', { type: 'button', class: 'link', onclick: () => { S.amenAll = all ? null : S.hotelId; renderHotelPage(); } }, all ? 'По-малко' : `Всички удобства (${list.length})`) : null,
+    h('p', { class: 'muted amen-note' }, 'По описанието на хотела. Някои услуги може да са платени или сезонни.'));
 }
 
 function roomCard(x, g) {

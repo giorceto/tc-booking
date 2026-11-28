@@ -48,9 +48,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* голямата снимка */
 .hero { position: relative; margin: 0 16px; height: 420px; border-radius: 32px; overflow: hidden; background: linear-gradient(160deg, #0b5fa5, #2bb5c9 55%, #f3d9a4); }
 .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.hero::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 45% at 50% 32%, rgba(0, 0, 0, .38), rgba(0, 0, 0, 0) 75%), linear-gradient(180deg, rgba(0, 0, 0, .22), rgba(0, 0, 0, 0) 55%); }
-.hero-text { position: relative; z-index: 1; text-align: center; padding: 110px 16px 0; }
-.hero h1 { margin: 0; color: var(--accent); font-size: clamp(28px, 4.2vw, 46px); font-weight: 800; letter-spacing: -.01em; text-shadow: 0 2px 4px rgba(0, 0, 0, .45), 0 2px 24px rgba(0, 0, 0, .45); }
 
 /* картата с търсенето – върху снимката */
 .search-card { position: relative; z-index: 2; margin: -150px auto 0; max-width: 1080px; background: var(--panel); border-radius: 32px; box-shadow: var(--shadow); padding: 28px 28px 18px; }
@@ -166,6 +163,18 @@ button.link { background: none; border: 0; color: var(--sea-text); padding: 8px 
 .price { font-weight: 700; font-size: 17px; color: var(--price); white-space: nowrap; }
 .more { text-align: center; margin: 18px 0; }
 .foot { color: var(--muted); font-size: 13px; padding-top: 12px; padding-bottom: 28px; }
+
+/* удобства (от описанието на сайта) */
+.amen { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--text); }
+.amen li { display: flex; align-items: center; gap: 6px; }
+.amen .ai { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); }
+.amenities { margin-top: 18px; }
+.amenities h2 { font-size: 18px; margin: 0 0 10px; }
+.amen-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 18px; }
+.amen-grid li { display: flex; align-items: center; gap: 10px; }
+.amen-grid .ai { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.amenities .link { padding: 10px 0 0; font-weight: 600; }
+.amen-note { font-size: 12.5px; margin: 8px 0 0; }
 
 /* снимка в картата */
 .hotel.with-photo { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
@@ -301,7 +310,6 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
 
 @media (max-width: 900px) {
   .hero { height: 300px; border-radius: 24px; }
-  .hero-text { padding-top: 70px; }
   .search-card { margin-top: -110px; padding: 18px; border-radius: 24px; }
   .pill { flex-direction: column; align-items: stretch; border-radius: 20px; padding: 6px; }
   .pill { position: relative; }
@@ -325,7 +333,6 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
 @media (max-width: 700px) {
   .months { grid-template-columns: 1fr; }
   .hero { height: 230px; margin: 0 10px; }
-  .hero-text { padding-top: 46px; }
   .search-card { margin-top: -80px; }
   .tag { display: none; }
   .hotel.with-photo { grid-template-columns: 1fr; gap: 12px; }

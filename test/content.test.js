@@ -178,3 +178,24 @@ test('при равен резултат печели страницата с о
   assert.strictEqual(store.data.links['10'].state, 'check');
   assert.strictEqual(store.data.links['10'].why, 'taken:11');
 });
+
+test('удобства от описанието: ключови думи, отрицание, име ≠ СПА, „зона само за възрастни“ ≠ хотел за възрастни', () => {
+  const { amenities } = require('../src/content/amenities');
+  const keys = (text, name) => amenities([{ title: 'На територията на хотела', text }], name).map((a) => a.key);
+  assert.deepStrictEqual(keys('4 открити басейна, закрит басейн, аквапарк с 19 пързалки, SPA център, турска баня, сауна, фитнес, мини клуб, анимация, Wi-Fi'),
+    ['pool', 'indoor', 'slides', 'spa', 'steam', 'fitness', 'kids', 'animation', 'wifi']);
+  assert.ok(!keys('LONICERA RESORT & SPA 5* е популярен хотел.').includes('spa'), 'SPA само в името не е СПА център');
+  assert.ok(!keys('Хотелът не е подходящ за придвижване с инвалидна количка.').includes('accessible'), 'отрицание');
+  assert.ok(keys('Налични са специално оборудвани стаи за гости с двигателни затруднения.').includes('accessible'));
+  assert.ok(!keys('Плаж с обособена зона само за възрастни.').includes('adults'), 'зона, не целият хотел');
+  assert.ok(!keys('Фитнес център за гости над 16 години.').includes('adults'));
+  assert.ok(keys('Хотелът приема само гости над 16 години.').includes('adults'));
+  assert.ok(keys('басейн', 'SIDE MOVE HOTEL (+16 ADULT ONLY)').includes('adults'), 'по името');
+  assert.ok(!keys('тенис на маса, дартс').includes('tennis'), 'тенис на маса не е тенис корт');
+  assert.ok(!keys('шезлонги и чадъри на плажа – безплатно').includes('sea'), '„на плажа“ не е „на брега“');
+  const b = amenities([{ title: 'Плаж', text: 'Собствен пясъчен плаж с дължина 300 м.' }]);
+  assert.deepStrictEqual(b.map((a) => a.label), ['Собствен пясъчен плаж']);
+  assert.ok(keys('Хотел, разположен непосредствено на морския бряг.').includes('sea'));
+  assert.ok(keys('Плаж: Собствен, пясъчно-чакълест плаж.').includes('beach'));
+  assert.deepStrictEqual(amenities([]), []);
+});
