@@ -3,11 +3,13 @@
 //                 (по подразбиране Истанбул – ще се пусне по-късно)
 //   markupPct   – надценка върху нетната цена на оператора, % (по подразбиране 13)
 //   promoCodes  – промо кодове: [{ code, type: 'pct'|'eur', value, until, active, note, createdAt, by }]
+//   popularHotels – „Популярни хотели“ на заглавната страница, в този ред: [{ hotelId, by, addedAt }]
 const fs = require('fs');
 const path = require('path');
 const { promoValid, normCode } = require('./promo');
 
-const DEFAULTS = { hiddenAreas: ['ISTANBUL'], markupPct: 13, promoCodes: [] };
+const DEFAULTS = { hiddenAreas: ['ISTANBUL'], markupPct: 13, promoCodes: [], popularHotels: [] };
+const MAX_POPULAR = 12;
 
 class Settings {
   constructor(file) {
@@ -77,6 +79,35 @@ class Settings {
     this.save();
   }
 
+  // ---------- популярни хотели (заглавната страница) ----------
+  popular() {
+    return this.data.popularHotels || [];
+  }
+
+  addPopular(hotelId, by = '') {
+    const id = String(hotelId || '').toUpperCase();
+    if (!/^H\d+$/.test(id)) throw new Error('Невалиден хотел');
+    if (this.popular().some((x) => x.hotelId === id)) throw new Error(`${id} вече е в популярните`);
+    if (this.popular().length >= MAX_POPULAR) throw new Error(`Най-много ${MAX_POPULAR} популярни хотела`);
+    this.data.popularHotels = [...this.popular(), { hotelId: id, by, addedAt: new Date().toISOString() }];
+    this.save();
+  }
+
+  // up | down – с едно място; delete – маха го
+  popularAction(hotelId, action) {
+    const list = [...this.popular()];
+    const i = list.findIndex((x) => x.hotelId === hotelId);
+    if (i < 0) throw new Error('Хотелът не е в популярните');
+    if (action === 'delete') list.splice(i, 1);
+    else {
+      const j = action === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    this.data.popularHotels = list;
+    this.save();
+  }
+
   isHidden(area) {
     return this.hidden.has(String(area || '').toUpperCase());
   }
@@ -93,4 +124,4 @@ class Settings {
   }
 }
 
-module.exports = { Settings };
+module.exports = { Settings, MAX_POPULAR };
