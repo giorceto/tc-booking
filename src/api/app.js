@@ -2,6 +2,7 @@
 //
 //   GET  /api/health
 //   GET  /api/areas                         курорти с брой хотели
+//   GET  /api/popular                       „Популярни хотели“ за заглавната страница (подредени от админа)
 //   GET  /api/hotels?q=...&area=...         търсене на хотел по име (за полето за търсене)
 //   GET  /api/search?area=SIDE|hotel=H1&date=2027-06-15&nights=7&adults=2&childAges=5,9
 //        JSON, или SSE при Accept: text/event-stream / &stream=1 (виж docs/api.md)
@@ -102,6 +103,7 @@ function createApp({ engine, catalog, bookings, admin, content, settings, geo = 
   const routes = [
     ['GET', /^\/api\/health$/, () => ({ ok: true })],
     ['GET', /^\/api\/areas$/, areas, 'catalog'],
+    ['GET', /^\/api\/popular$/, popular, 'catalog'],
     ['GET', /^\/api\/hotels$/, hotels, 'catalog'],
     ['GET', /^\/api\/search$/, search, 'search'],
     ['POST', /^\/api\/offer\/([A-Za-z0-9_-]{8,64})\/recheck$/, recheck, 'recheck'],
@@ -171,6 +173,18 @@ function createApp({ engine, catalog, bookings, admin, content, settings, geo = 
     const count = new Map();
     for (const h of catalog.data.hotels) if (h.area && searchable(h)) count.set(h.area, (count.get(h.area) || 0) + 1);
     return { areas: [...count].map(([area, hotels]) => ({ area, hotels })).sort((a, b) => b.hotels - a.hotels) };
+  }
+
+  // Популярните хотели от админа – само тези, които могат да се търсят (не са в скрит курорт и имат активен оператор)
+  function popular() {
+    const list = (settings ? settings.popular() : [])
+      .map((p) => catalog.get(p.hotelId))
+      .filter((h) => h && searchable(h))
+      .map((h) => {
+        const c = content && content.card(h.id);
+        return { ...publicHotel(h), image: c ? c.image : null, rating: c ? c.rating : null, reviews: c ? c.reviews : 0 };
+      });
+    return { hotels: list };
   }
 
   // Проверка на промо код от сайта: { code, label } или 404

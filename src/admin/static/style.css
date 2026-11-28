@@ -234,3 +234,17 @@ dd { margin: 0; overflow-wrap: anywhere; }
   td:nth-child(6) { grid-area: op; }
   td:nth-child(7) { grid-area: st; text-align: right; }
 }
+
+/* популярни хотели (Настройки) */
+.pop-list { display: grid; gap: 6px; margin-top: 10px; }
+.pop-row { display: grid; grid-template-columns: 22px 64px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.pop-row.off { opacity: .65; }
+.pop-row .cthumb { width: 64px; height: 44px; grid-row: auto; }
+.pop-name { min-width: 0; overflow-wrap: anywhere; }
+.pop-btns { white-space: nowrap; }
+.pop-flag { margin-left: 8px; }
+@media (max-width: 640px) {
+  .pop-row { grid-template-columns: 56px 1fr; }
+  .pop-n { display: none; }
+  .pop-btns { grid-column: 1 / -1; text-align: right; }
+}

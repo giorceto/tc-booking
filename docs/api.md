@@ -32,6 +32,12 @@
 { "areas": [{ "area": "ALANYA", "hotels": 312 }, { "area": "SIDE", "hotels": 205 }] }
 ```
 
+### `GET /api/popular`
+„Популярни хотели“ за заглавната страница – в реда от админа (Настройки). Само хотели, които могат да се търсят (курортът не е скрит, има активен доставчик). `image`, `rating` – от нашия сайт, може да са `null`.
+```json
+{ "hotels": [{ "hotelId": "H12", "name": "RIXOS PREMIUM BELEK", "area": "BELEK", "stars": 5, "image": "https://…/thumb.jpg", "rating": 4.6, "reviews": 812 }] }
+```
+
 ### `GET /api/hotels?q=utopia[&area=ALANYA]`
 Търсене на хотел по име, най-много 20 резултата, `q` е поне 2 букви. Не търси по кодовете при доставчиците.
 ```json

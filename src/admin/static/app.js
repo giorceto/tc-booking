@@ -636,9 +636,11 @@ async function renderAreasView() {
   const list = h('section', { class: 'clist' }, h('p', { class: 'muted empty' }, 'Зареждане…'));
   const markup = h('section', { class: 'markup-box' });
   const promoBox = h('section', { class: 'markup-box' });
+  const popularBox = h('section', { class: 'markup-box' });
   fill($app, header(),
     markup,
     promoBox,
+    popularBox,
     h('h2', { class: 'set-title' }, 'Курорти'),
     h('p', { class: 'muted small hint top-hint' }, 'Скритите курорти не се показват на сайта и за тях не се пращат заявки към операторите. Промяната важи веднага.'),
     list);
@@ -668,6 +670,7 @@ async function renderAreasView() {
         exEl),
       h('p', { class: 'muted small' }, 'Важи за всички хотели и оператори. Цената на сайта се закръгля нагоре до цяло евро. Вече направените резервации не се променят.'));
     renderPromos(promoBox);
+    renderPopular(popularBox);
     fill(list, h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
       h('input', { type: 'checkbox', checked: !a.hidden, onchange: async (e) => {
         const show = e.target.checked;
@@ -836,6 +839,56 @@ async function renderPromos(box) {
     } }, code, h('span', { class: 'promo-val-wrap' }, '−', value, type), until, note, h('button', { class: 'primary', type: 'submit' }, 'Добави')),
     r.promos.length ? h('table', { class: 'promo-table' }, h('tbody', null, rows)) : h('p', { class: 'muted small' }, 'Още няма промо кодове.'),
     h('p', { class: 'muted small' }, 'Отстъпката е от цената на сайта (с надценката). Цената с промо код никога не пада под нетната цена на оператора.'));
+}
+
+// ---------- популярни хотели на заглавната страница ----------
+async function renderPopular(box) {
+  let r;
+  try {
+    r = await api('api/popular');
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+    return;
+  }
+  const act = async (path, body = {}, msg = '') => {
+    try {
+      await api(path, body);
+      if (msg) toast(msg);
+      renderPopular(box);
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  };
+  const results = h('div', { class: 'presults' });
+  const taken = new Set(r.hotels.map((x) => x.hotelId));
+  const input = h('input', { type: 'search', placeholder: 'Добави хотел: име или H-номер', 'aria-label': 'Добави популярен хотел', oninput: debounce(find, 250) });
+  async function find() {
+    if (input.value.trim().length < 2) return fill(results);
+    try {
+      const f = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
+      const list = f.hotels.filter((y) => !taken.has(y.id));
+      fill(results, ...(list.length ? list.map((y) => h('button', { class: 'pick', onclick: () => act('api/popular', { hotelId: y.id }, `${y.name} е в популярните`) },
+        h('strong', null, y.name), ` ${y.stars ? '★'.repeat(y.stars) : ''} · ${AREA_BG[y.area] || y.area} · ${y.id}`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел в каталога.')]));
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  }
+  const n = r.hotels.length;
+  const rows = r.hotels.map((x, i) => h('div', { class: `pop-row${x.problem ? ' off' : ''}` },
+    h('span', { class: 'pop-n muted' }, String(i + 1)),
+    x.image ? h('img', { class: 'cthumb', src: x.image, alt: '', loading: 'lazy' }) : h('div', { class: 'cthumb' }),
+    h('span', { class: 'pop-name' }, h('strong', null, x.name), x.stars ? ` ${'★'.repeat(x.stars)}` : '',
+      h('small', { class: 'muted' }, ` · ${AREA_BG[x.area] || x.area} · ${x.hotelId}`),
+      x.problem ? h('span', { class: 'flag pop-flag' }, `не се вижда: ${x.problem}`) : !x.image ? h('span', { class: 'flag pop-flag' }, 'без снимка') : null),
+    h('span', { class: 'pop-btns' },
+      h('button', { class: 'small-btn', disabled: i === 0, 'aria-label': 'Нагоре', onclick: () => act(`api/popular/${x.hotelId}/up`) }, '↑'), ' ',
+      h('button', { class: 'small-btn', disabled: i === n - 1, 'aria-label': 'Надолу', onclick: () => act(`api/popular/${x.hotelId}/down`) }, '↓'), ' ',
+      h('button', { class: 'small-btn danger', onclick: () => confirm(`Да махна ли ${x.name} от популярните?`) && act(`api/popular/${x.hotelId}/delete`) }, 'Махни'))));
+  fill(box,
+    h('h2', { class: 'set-title' }, 'Популярни хотели'),
+    h('p', { class: 'muted small' }, 'Показват се на заглавната страница на сайта в този ред (до 12). Клиентът избира хотел и дати и търси направо в него.'),
+    h('div', { class: 'picker' }, input, results),
+    n ? h('div', { class: 'pop-list' }, rows) : h('p', { class: 'muted small' }, 'Още няма популярни хотели – секцията не се показва на сайта.'));
 }
 
 // ---------- общи ----------

@@ -78,6 +78,7 @@ const amenList = (list, cls) => h('ul', { class: cls }, list.map((a) => h('li', 
 // ---------- състояние ----------
 const S = {
   areas: [],
+  popularHotels: [], // от админа (Настройки → Популярни хотели)
   target: null, // { area } | { hotel, label }
   params: null,
   results: new Map(), // hotelId -> хотел от API-то
@@ -426,6 +427,7 @@ async function search(params) {
   Object.assign(S, { params, done: false, incomplete: false, error: '', shown: 20, f: newFilters(), sort: 'price', amenMore: false });
   closeSide();
   $('popular').hidden = true;
+  $('popular-hotels').hidden = true;
   S.results = new Map(); // нов – запазеният списък (S.prev) остава непокътнат
   S.expanded.clear();
   S.roomSel.clear();
@@ -1379,17 +1381,31 @@ function removePromo() {
   if (S.params) search(S.params);
 }
 
-// ---------- популярни курорти (докато още няма търсене) ----------
+// ---------- популярни курорти и хотели (докато още няма търсене) ----------
+// Избран курорт/хотел: с дати – търси веднага, без дати – отваря календара
+function choose(label, value) {
+  pick({ label, value });
+  $('search').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (S.checkIn && S.checkOut) $('search').requestSubmit();
+  else openCal();
+}
+
 function renderPopular() {
   const box = $('popular');
   box.hidden = Boolean(S.params) || !S.areas.length;
-  if (box.hidden) return;
-  fill($('popular-list'), ...S.areas.slice(0, 8).map((a) => h('button', { type: 'button', class: 'resort', onclick: () => {
-    pick({ label: areaName(a.area), value: { area: a.area } });
-    $('search').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if (S.checkIn && S.checkOut) $('search').requestSubmit();
-    else openCal();
-  } }, h('strong', null, areaName(a.area)), h('span', null, plural(a.hotels, 'хотел', 'хотела')))));
+  if (!box.hidden) {
+    fill($('popular-list'), ...S.areas.slice(0, 8).map((a) => h('button', { type: 'button', class: 'resort', onclick: () => choose(areaName(a.area), { area: a.area }) },
+      h('strong', null, areaName(a.area)), h('span', null, plural(a.hotels, 'хотел', 'хотела')))));
+  }
+  const hb = $('popular-hotels');
+  hb.hidden = Boolean(S.params) || !S.popularHotels.length;
+  if (hb.hidden) return;
+  fill($('popular-hotels-list'), ...S.popularHotels.map((x) => h('button', { type: 'button', class: 'ph', 'aria-label': `${x.name}, ${areaName(x.area)} – избери дати`, onclick: () => choose(x.name, { hotel: x.hotelId, label: x.name }) },
+    h('span', { class: 'ph-photo' }, x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', decoding: 'async' }) : null),
+    h('span', { class: 'ph-body' },
+      h('strong', { class: 'ph-name' }, x.name, x.stars ? [' ', h('span', { class: 'stars', 'aria-hidden': 'true' }, '★'.repeat(x.stars))] : null),
+      h('span', { class: 'ph-area' }, areaName(x.area),
+        x.rating ? h('span', { class: 'rating' }, ` · ★ ${x.rating.toFixed(1)}`, x.reviews ? h('small', null, ` (${x.reviews})`) : null) : null)))));
 }
 
 // ---------- старт ----------
@@ -1403,5 +1419,13 @@ function renderPopular() {
   }
   if (!S.areas.length) fill($('status'), h('p', { class: 'note' }, 'Търсенето временно не работи. Моля, опитайте по-късно.'));
   loadUrl();
+  renderPopular();
+  // популярните хотели – отделно, за да не бавят търсачката
+  try {
+    const r = await fetch('api/popular');
+    S.popularHotels = r.ok ? (await r.json()).hotels : [];
+  } catch {
+    S.popularHotels = [];
+  }
   renderPopular();
 })();

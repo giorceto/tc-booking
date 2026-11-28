@@ -500,3 +500,47 @@ test('админ: промо кодове – добавяне, спиране, 
   r = await post('/admin/api/promos/SUMMER26/delete');
   assert.deepStrictEqual(r.json.promos, []);
 });
+
+test('популярни хотели: подреждане от админа, на сайта само тези, които могат да се търсят', async (t) => {
+  const { Settings } = require('../src/settings');
+  const { Users } = require('../src/auth');
+  const { createAdmin } = require('../src/admin/routes');
+  const w = world();
+  const settings = new Settings(path.join(w.dir, 'settings.json'));
+  settings.setHidden('KEMER', true);
+  const users = new Users(path.join(w.dir, 'u.json'));
+  users.add('ana', 'много-тайна-парола');
+  const api = await start(w, { settings, admin: createAdmin({ bookings: w.bookings, users, settings, catalog: w.catalog, log: w.log }) });
+  t.after(() => w.close());
+
+  assert.deepStrictEqual((await api('/api/popular')).json, { hotels: [] }, 'без популярни – празно');
+  assert.strictEqual((await api('/admin/api/popular')).status, 401, 'админът – само с вход');
+
+  const login = await api('/admin/api/login', { method: 'POST', body: { user: 'ana', password: 'много-тайна-парола' } });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const post = (p, body = {}) => api(p, { method: 'POST', body, headers: { Cookie } });
+
+  for (const id of ['H2', 'H1', 'H3', 'H4']) assert.strictEqual((await post('/admin/api/popular', { hotelId: id })).status, 200, id);
+  assert.strictEqual((await post('/admin/api/popular', { hotelId: 'H1' })).status, 400, 'вече е там');
+  assert.strictEqual((await post('/admin/api/popular', { hotelId: 'H99' })).status, 400, 'няма го в каталога');
+
+  let r = await post('/admin/api/popular/H1/up');
+  assert.deepStrictEqual(r.json.hotels.map((x) => x.hotelId), ['H1', 'H2', 'H3', 'H4']);
+  assert.strictEqual(r.json.hotels[0].by, 'ana');
+  assert.strictEqual(r.json.hotels.find((x) => x.hotelId === 'H3').problem, 'курортът е скрит');
+  r = await post('/admin/api/popular/H1/up');
+  assert.strictEqual(r.status, 200, 'първият нагоре – нищо не става');
+  assert.deepStrictEqual(r.json.hotels.map((x) => x.hotelId), ['H1', 'H2', 'H3', 'H4']);
+
+  // на сайта: H3 е в скрит курорт, H4 няма активен оператор -> не се показват
+  r = await api('/api/popular');
+  assert.deepStrictEqual(r.json.hotels.map((x) => [x.hotelId, x.name, x.area, x.stars]), [['H1', 'TEST PALACE', 'SIDE', 5], ['H2', 'OTHER BEACH', 'SIDE', 4]]);
+  noLeaks(r.text);
+
+  r = await post('/admin/api/popular/H2/delete');
+  assert.deepStrictEqual(r.json.hotels.map((x) => x.hotelId), ['H1', 'H3', 'H4']);
+  assert.deepStrictEqual((await api('/api/popular')).json.hotels.map((x) => x.hotelId), ['H1']);
+  // запазено във файла – важи и след рестарт
+  assert.deepStrictEqual(new Settings(path.join(w.dir, 'settings.json')).popular().map((x) => x.hotelId), ['H1', 'H3', 'H4']);
+  assert.ok(w.logs.some((l) => /ana: популярен хотел \+ H1 TEST PALACE/.test(l)));
+});

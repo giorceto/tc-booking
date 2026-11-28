@@ -64,6 +64,9 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     ['POST', /^\/admin\/api\/promos$/, promoAdd],
     ['POST', /^\/admin\/api\/promos\/([^/]{1,60})\/(on|off|delete)$/, promoAction],
     ['POST', /^\/admin\/api\/areas\/([A-Z ]{2,40})$/, areaSet],
+    ['GET', /^\/admin\/api\/popular$/, popularList],
+    ['POST', /^\/admin\/api\/popular$/, popularAdd],
+    ['POST', /^\/admin\/api\/popular\/(H\d+)\/(up|down|delete)$/, popularAction],
     ['GET', /^\/admin\/api\/catalog\/refresh$/, refreshStatus],
     ['POST', /^\/admin\/api\/catalog\/refresh$/, refreshStart],
     ['POST', /^\/admin\/api\/catalog\/(H\d+)\/(confirm|split|move)$/, catalogAction],
@@ -467,6 +470,49 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     }
     log.info(`[admin] ${user}: надценка ${before}% -> ${pct}%`);
     return { markupPct: pct };
+  }
+
+  // ---------- популярни хотели на заглавната страница ----------
+  const needPopular = () => {
+    if (!catalog || !settings) throw new HttpError(404, 'Няма настройки');
+  };
+  function popularList() {
+    needPopular();
+    return {
+      hotels: settings.popular().map((p) => {
+        const h = catalog.get(p.hotelId);
+        const c = h && content ? content.card(h.id) : null;
+        // защо не се вижда на сайта (празно – вижда се)
+        const problem = !h ? 'няма го в каталога' : settings.isHidden(h.area) ? 'курортът е скрит' : '';
+        return { hotelId: p.hotelId, name: h ? h.name : p.hotelId, area: h ? h.area : '', stars: h ? h.stars || null : null, image: c ? c.image : null, problem, by: p.by, addedAt: p.addedAt };
+      }),
+    };
+  }
+
+  function popularAdd({ body, user }) {
+    needPopular();
+    const id = String((body && body.hotelId) || '').toUpperCase();
+    const h = catalog.get(id);
+    if (!h) throw new HttpError(400, 'Няма такъв хотел в каталога');
+    try {
+      settings.addPopular(id, user);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: популярен хотел + ${id} ${h.name}`);
+    return popularList();
+  }
+
+  function popularAction({ match, user }) {
+    needPopular();
+    const [, id, action] = match;
+    try {
+      settings.popularAction(id, action);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: популярен хотел ${id} ${action === 'delete' ? 'махнат' : action === 'up' ? 'нагоре' : 'надолу'}`);
+    return popularList();
   }
 
   function areaSet({ match, body, user }) {
