@@ -48,6 +48,7 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
     ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
     ['GET', /^\/admin\/api\/areas$/, areaList],
+    ['POST', /^\/admin\/api\/markup$/, markupSet],
     ['POST', /^\/admin\/api\/areas\/([A-Z ]{2,40})$/, areaSet],
     ['GET', /^\/admin\/api\/catalog\/refresh$/, refreshStatus],
     ['POST', /^\/admin\/api\/catalog\/refresh$/, refreshStart],
@@ -286,7 +287,20 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     const count = new Map();
     for (const h of catalog.data.hotels) if (h.area) count.set(h.area, (count.get(h.area) || 0) + 1);
     const list = [...count].filter(([area, n]) => n >= 3 || settings.isHidden(area)).map(([area, hotels]) => ({ area, hotels, hidden: settings.isHidden(area) }));
-    return { areas: list.sort((x, y) => y.hotels - x.hotels) };
+    return { areas: list.sort((x, y) => y.hotels - x.hotels), markupPct: settings.markupPct };
+  }
+
+  function markupSet({ body, user }) {
+    if (!settings) throw new HttpError(404, 'Няма настройки');
+    const before = settings.markupPct;
+    let pct;
+    try {
+      pct = settings.setMarkup(body && body.markupPct);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: надценка ${before}% -> ${pct}%`);
+    return { markupPct: pct };
   }
 
   function areaSet({ match, body, user }) {

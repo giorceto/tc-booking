@@ -261,3 +261,42 @@ test('скрит курорт (Истанбул): не се показва, не
   assert.ok(calls > 0);
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).hiddenAreas, [], 'записано');
 });
+
+test('надценка: по подразбиране 13 %; смяна от админа важи веднага; празно или извън 0–100 – грешка', async (t) => {
+  const { Settings } = require('../src/settings');
+  const { SearchEngine } = require('../src/engine/search');
+  const dir = tmp();
+  const f = path.join(dir, 'catalog.json');
+  fs.writeFileSync(f, JSON.stringify({ hotels: [{ id: 'H1', name: 'SIDE BEACH', area: 'SIDE', links: { AAA: { code: 'SB', name: 'SIDE BEACH', state: 'ok' } } }], blocked: [], nextId: 2 }));
+  const catalog = new Catalog(f);
+  const suppliers = { AAA: { type: 'sejour', search: async () => ({ offers: [{ hotelCode: 'SB', room: 'STANDARD ROOM', roomCode: 'STD', board: 'AI', boardName: 'AI', total: 500, currency: 'EUR', status: 'OK' }] }) } };
+  const settings = new Settings(path.join(dir, 'settings.json'));
+  assert.strictEqual(settings.markupPct, 13);
+  const engine = new SearchEngine({ catalog, suppliers, markupPct: settings.markupPct, dataDir: dir });
+  settings.onChange = () => (engine.markupPct = settings.markupPct);
+  const users = new Users(path.join(dir, 'u.json'));
+  users.add('ana', 'много-тайна-парола');
+  const quiet = { info() {}, warn() {}, error() {} };
+  const admin = createAdmin({ bookings: new BookingStore(path.join(dir, 'b.json')), users, catalog, settings, log: quiet });
+  const server = createServer({ engine, catalog, bookings: new BookingStore(path.join(dir, 'b2.json')), admin, settings, log: quiet });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const date = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const price = async () => (await (await fetch(`${base}/api/search?hotel=H1&date=${date}`)).json()).hotels[0].fromPrice;
+  assert.strictEqual(await price(), 565, '500 + 13 %');
+
+  const login = await fetch(base + '/admin/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: 'ana', password: 'много-тайна-парола' }) });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const set = (v) => fetch(base + '/admin/api/markup', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie }, body: JSON.stringify({ markupPct: v }) });
+  assert.strictEqual((await (await fetch(base + '/admin/api/areas', { headers: { Cookie } })).json()).markupPct, 13);
+  assert.deepStrictEqual(await (await set('10')).json(), { markupPct: 10 });
+  assert.strictEqual(await price(), 550, 'веднага, без рестарт (цените от кеша са нетни)');
+  for (const bad of ['', null, '150', '-1', 'abc']) assert.strictEqual((await set(bad)).status, 400, `„${bad}“ не се приема`);
+  assert.strictEqual(new Settings(path.join(dir, 'settings.json')).markupPct, 10, 'записано');
+  assert.strictEqual((await set('12,5')).status, 200, 'и със запетая');
+  assert.strictEqual(await price(), 563, '500 × 1.125 = 562.5 -> нагоре');
+});

@@ -13,7 +13,7 @@ const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
 const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
 const { Settings } = require('./settings');
-const { ROOT, PORT, HOST, CORS_ORIGIN, MARKUP_PCT, CACHE_MIN, SITE_URL, HERO_IMAGE, CATALOG_TIME, operators } = require('./config');
+const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
 const catalogFile = path.join(ROOT, 'data', 'catalog.json');
@@ -25,10 +25,12 @@ const catalog = new Catalog(catalogFile);
 // автоматични връзки, станали през непроверено име – за проверка, докато човек не ги прегледа
 const chains = catalog.markChains();
 const suppliers = createSuppliers();
-const engine = new SearchEngine({ catalog, suppliers, markupPct: MARKUP_PCT, cacheMin: CACHE_MIN });
+// скрити курорти и надценка – от админа (data/settings.json), важат веднага
+const settings = new Settings(path.join(ROOT, 'data', 'settings.json'));
+const engine = new SearchEngine({ catalog, suppliers, markupPct: settings.markupPct, cacheMin: CACHE_MIN });
+settings.onChange = () => (engine.markupPct = settings.markupPct);
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
 const content = new ContentStore(path.join(ROOT, 'data', 'content.json')); // npm run import-site
-const settings = new Settings(path.join(ROOT, 'data', 'settings.json')); // скрити курорти – от админа
 
 const stamp = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Sofia' });
 const log = {
@@ -70,7 +72,7 @@ server.listen(PORT, HOST, () => {
   if (chains) log.info(`  каталог: ${chains} верижни връзки станаха „за проверка“ (админ → Каталог)`);
   log.info(`  каталог: обновяване от операторите всяка нощ в ${CATALOG_TIME}${catalogJob.last ? `, последно ${catalogJob.last.at}` : ''}`);
   log.info(`  доставчици: ${Object.keys(suppliers).join(', ') || 'няма – попълнете .env'}`);
-  log.info(`  надценка ${MARKUP_PCT}%, кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
+  log.info(`  надценка ${settings.markupPct}% (админ → Настройки), кеш ${CACHE_MIN} мин${CORS_ORIGIN ? `, CORS: ${CORS_ORIGIN}` : ''}`);
   if (settings.hidden.size) log.info(`  скрити курорти (админ → Курорти): ${[...settings.hidden].join(', ')}`);
   const cc = content.counts();
   log.info(`  снимки от сайта: ${cc.linked} хотела${cc.check ? `, ${cc.check} за проверка` : ''}${cc.linked + cc.check + cc.none ? '' : ' – npm run import-site'}`);

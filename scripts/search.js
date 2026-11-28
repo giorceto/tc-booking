@@ -7,7 +7,8 @@ const fs = require('fs');
 const Catalog = require('../src/catalog/catalog');
 const { createSuppliers } = require('../src/suppliers');
 const { SearchEngine } = require('../src/engine/search');
-const { ROOT, MARKUP_PCT, CACHE_MIN } = require('../src/config');
+const { ROOT, CACHE_MIN } = require('../src/config');
+const { Settings } = require('../src/settings');
 
 const args = process.argv.slice(2).filter((a) => a !== '--internal');
 const internal = process.argv.includes('--internal');
@@ -18,7 +19,7 @@ if (!['hotel', 'area'].includes(mode) || !target || !/^\d{4}-\d{2}-\d{2}$/.test(
 }
 const dataFile = path.join(ROOT, 'data', 'catalog.json');
 const catalog = new Catalog(fs.existsSync(dataFile) ? dataFile : path.join(ROOT, 'data', 'seed', 'catalog.json'));
-const engine = new SearchEngine({ catalog, suppliers: createSuppliers(), markupPct: MARKUP_PCT, cacheMin: CACHE_MIN });
+const engine = new SearchEngine({ catalog, suppliers: createSuppliers(), markupPct: new Settings(path.join(ROOT, 'data', 'settings.json')).markupPct, cacheMin: CACHE_MIN });
 const params = { date, nights: Number(nights), adults: Number(adults), childAges: kids ? kids.split(',').map(Number) : [] };
 
 (async () => {

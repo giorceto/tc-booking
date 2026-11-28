@@ -1,10 +1,11 @@
 // Настройки, които се сменят от админа без рестарт: data/settings.json
 //   hiddenAreas – курорти, които не се показват на сайта и не се търсят при операторите
 //                 (по подразбиране Истанбул – ще се пусне по-късно)
+//   markupPct   – надценка върху нетната цена на оператора, % (по подразбиране 13)
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULTS = { hiddenAreas: ['ISTANBUL'] };
+const DEFAULTS = { hiddenAreas: ['ISTANBUL'], markupPct: 13 };
 
 class Settings {
   constructor(file) {
@@ -23,6 +24,22 @@ class Settings {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     fs.writeFileSync(this.file + '.tmp', JSON.stringify(this.data, null, 1));
     fs.renameSync(this.file + '.tmp', this.file);
+  }
+
+  get markupPct() {
+    const n = Number(this.data.markupPct);
+    return Number.isFinite(n) ? n : DEFAULTS.markupPct;
+  }
+
+  // Надценка 0–100 %, до една десета; onChange (сървърът) я подава на търсачката веднага
+  setMarkup(pct) {
+    const raw = String(pct == null ? '' : pct).trim().replace(',', '.');
+    const n = Math.round(Number(raw) * 10) / 10;
+    if (!raw || !Number.isFinite(n) || n < 0 || n > 100) throw new Error('Надценката трябва да е число между 0 и 100 %');
+    this.data.markupPct = n;
+    this.save();
+    if (this.onChange) this.onChange();
+    return n;
   }
 
   isHidden(area) {

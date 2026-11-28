@@ -100,7 +100,7 @@ function header() {
   } }, label);
   return h('header', { class: 'top' },
     h('strong', null, 'TC Booking'),
-    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('areas', 'Курорти')),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('areas', 'Настройки')),
     h('span', { class: 'spacer' }),
     h('span', { class: 'muted' }, state.user),
     h('button', { class: 'link', onclick: logout }, 'Изход'));
@@ -531,15 +531,41 @@ function movePicker(x, l, onPick) {
 }
 
 // ---------- курорти: кои се показват на сайта ----------
-const AREA_BG = { ANTALYA: 'Анталия', BELEK: 'Белек', SIDE: 'Сиде', ALANYA: 'Алания', KEMER: 'Кемер', BODRUM: 'Бодрум', MARMARIS: 'Мармарис', FETHIYE: 'Фетие', DALAMAN: 'Даламан', KUSADASI: 'Кушадасъ', DIDIM: 'Дидим', CESME: 'Чешме', IZMIR: 'Измир', AYVALIK: 'Айвалък', ISTANBUL: 'Истанбул', KAPADOKYA: 'Кападокия' };
+const AREA_BG = { ANTALYA: 'Анталия', BELEK: 'Белек', SIDE: 'Сиде', ALANYA: 'Алания', KEMER: 'Кемер', BODRUM: 'Бодрум', MARMARIS: 'Мармарис', FETHIYE: 'Фетие', DALAMAN: 'Даламан', KUSADASI: 'Кушадасъ', DIDIM: 'Дидим', CESME: 'Чешме', IZMIR: 'Измир', AYVALIK: 'Айвалък', ISTANBUL: 'Истанбул', KAPADOKYA: 'Кападокия', CANAKKALE: 'Чанаккале', EDREMIT: 'Едремит', SEFERIHISAR: 'Сеферихисар', TEKIRDAG: 'Текирдаг', CORLU: 'Чорлу' };
 
 async function renderAreasView() {
   const list = h('section', { class: 'clist' }, h('p', { class: 'muted empty' }, 'Зареждане…'));
+  const markup = h('section', { class: 'markup-box' });
   $app.replaceChildren(header(),
+    markup,
+    h('h2', { class: 'set-title' }, 'Курорти'),
     h('p', { class: 'muted small hint top-hint' }, 'Скритите курорти не се показват на сайта и за тях не се пращат заявки към операторите. Промяната важи веднага.'),
     list);
   try {
     const r = await api('api/areas');
+    const inp = h('input', { type: 'number', min: '0', max: '100', step: '0.5', value: r.markupPct, 'aria-label': 'Надценка в проценти' });
+    const ex = () => {
+      const p = Number(inp.value);
+      return Number.isFinite(p) ? `Пример: нетна 1000 € → на сайта ${Math.ceil(Math.round(1000 * (1 + p / 100) * 100) / 100)} €` : '';
+    };
+    const exEl = h('span', { class: 'muted small' }, ex());
+    inp.addEventListener('input', () => (exEl.textContent = ex()));
+    markup.replaceChildren(
+      h('h2', { class: 'set-title' }, 'Надценка'),
+      h('div', { class: 'markup-row' },
+        h('label', null, inp, ' % върху нетната цена на оператора'),
+        h('button', { class: 'primary', onclick: async () => {
+          try {
+            const res = await api('api/markup', { markupPct: inp.value });
+            inp.value = res.markupPct;
+            exEl.textContent = ex();
+            toast(`Надценка ${res.markupPct}% – важи за новите търсения веднага`);
+          } catch (e) {
+            if (e.message !== '401') toast(e.message, 'bad');
+          }
+        } }, 'Запази'),
+        exEl),
+      h('p', { class: 'muted small' }, 'Важи за всички хотели и оператори. Цената на сайта се закръгля нагоре до цяло евро. Вече направените резервации не се променят.'));
     list.replaceChildren(h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
       h('input', { type: 'checkbox', checked: !a.hidden, onchange: async (e) => {
         const show = e.target.checked;

@@ -29,7 +29,7 @@ const pax = (adults, kids) => [plural(adults, 'възрастен', 'възра�
 const AREA_BG = {
   ANTALYA: 'Анталия', BELEK: 'Белек', SIDE: 'Сиде', ALANYA: 'Алания', KEMER: 'Кемер', BODRUM: 'Бодрум', MARMARIS: 'Мармарис',
   FETHIYE: 'Фетие', DALAMAN: 'Даламан', KUSADASI: 'Кушадасъ', DIDIM: 'Дидим', CESME: 'Чешме', IZMIR: 'Измир', AYVALIK: 'Айвалък',
-  ISTANBUL: 'Истанбул', KAPADOKYA: 'Кападокия',
+  ISTANBUL: 'Истанбул', KAPADOKYA: 'Кападокия', CANAKKALE: 'Чанаккале', EDREMIT: 'Едремит', SEFERIHISAR: 'Сеферихисар', TEKIRDAG: 'Текирдаг', CORLU: 'Чорлу',
 };
 const areaName = (a) => AREA_BG[a] || (a ? a.charAt(0) + a.slice(1).toLowerCase() : '');
 
