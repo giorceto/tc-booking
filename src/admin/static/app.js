@@ -240,6 +240,7 @@ function renderDetail() {
       ])),
       h('div', { class: 'card' }, h('h3', null, 'Цена'), dl([
         ['Продажна', h('strong', null, money(p.price, p.currency))],
+        p.promo ? ['Промо код', `${p.promo.code} ${p.promo.label} (без него ${money(p.priceBefore, p.currency)})`] : null,
         ['Нетна', money(i.net, i.currency)],
         ['Печалба', b.margin == null ? '– (различна валута)' : money(b.margin, p.currency)],
         ['Надценка', `${i.markupPct || 0}%`],
@@ -536,8 +537,10 @@ const AREA_BG = { ANTALYA: 'Анталия', BELEK: 'Белек', SIDE: 'Сид�
 async function renderAreasView() {
   const list = h('section', { class: 'clist' }, h('p', { class: 'muted empty' }, 'Зареждане…'));
   const markup = h('section', { class: 'markup-box' });
+  const promoBox = h('section', { class: 'markup-box' });
   $app.replaceChildren(header(),
     markup,
+    promoBox,
     h('h2', { class: 'set-title' }, 'Курорти'),
     h('p', { class: 'muted small hint top-hint' }, 'Скритите курорти не се показват на сайта и за тях не се пращат заявки към операторите. Промяната важи веднага.'),
     list);
@@ -566,6 +569,7 @@ async function renderAreasView() {
         } }, 'Запази'),
         exEl),
       h('p', { class: 'muted small' }, 'Важи за всички хотели и оператори. Цената на сайта се закръгля нагоре до цяло евро. Вече направените резервации не се променят.'));
+    renderPromos(promoBox);
     list.replaceChildren(h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
       h('input', { type: 'checkbox', checked: !a.hidden, onchange: async (e) => {
         const show = e.target.checked;
@@ -583,6 +587,47 @@ async function renderAreasView() {
   } catch (e) {
     if (e.message !== '401') toast(e.message, 'bad');
   }
+}
+
+// ---------- промо кодове ----------
+async function renderPromos(box) {
+  let r;
+  try {
+    r = await api('api/promos');
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+    return;
+  }
+  const code = h('input', { placeholder: 'КОД, напр. ЛЯТО10', maxlength: '20', 'aria-label': 'Промо код', class: 'promo-code' });
+  const type = h('select', { 'aria-label': 'Вид отстъпка' }, h('option', { value: 'pct' }, '%'), h('option', { value: 'eur' }, '€'));
+  const value = h('input', { type: 'number', min: '1', step: '0.5', placeholder: '10', 'aria-label': 'Отстъпка', class: 'promo-val' });
+  const until = h('input', { placeholder: 'валиден до дд.мм.гггг', maxlength: '10', 'aria-label': 'Валиден до', class: 'promo-until' });
+  const note = h('input', { placeholder: 'бележка (по желание)', maxlength: '200', 'aria-label': 'Бележка', class: 'promo-note' });
+  const act = async (path, body = {}) => {
+    try {
+      await api(path, body);
+      renderPromos(box);
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  };
+  const rows = r.promos.map((p) => h('tr', { class: p.valid ? '' : 'muted' },
+    h('td', null, h('strong', { class: 'mono' }, p.code), p.note ? h('div', { class: 'muted small' }, p.note) : null),
+    h('td', null, p.label),
+    h('td', null, p.until ? `до ${day(p.until)}` : 'без срок'),
+    h('td', null, h('span', { class: `badge ${p.valid ? 's-confirmed' : 's-cancelled'}` }, p.valid ? 'важи' : p.active === false ? 'спрян' : 'изтекъл')),
+    h('td', { class: 'num' }, `${p.uses} рез.`),
+    h('td', { class: 'num' },
+      h('button', { class: 'small-btn', onclick: () => act(`api/promos/${encodeURIComponent(p.code)}/${p.active === false ? 'on' : 'off'}`) }, p.active === false ? 'Пусни' : 'Спри'), ' ',
+      h('button', { class: 'small-btn danger', onclick: () => confirm(`Да изтрия ли ${p.code}?`) && act(`api/promos/${encodeURIComponent(p.code)}/delete`) }, 'Изтрий'))));
+  box.replaceChildren(
+    h('h2', { class: 'set-title' }, 'Промо кодове'),
+    h('form', { class: 'promo-form', onsubmit: (e) => {
+      e.preventDefault();
+      act('api/promos', { code: code.value, type: type.value, value: value.value, until: until.value, note: note.value });
+    } }, code, h('span', { class: 'promo-val-wrap' }, '−', value, type), until, note, h('button', { class: 'primary', type: 'submit' }, 'Добави')),
+    r.promos.length ? h('table', { class: 'promo-table' }, h('tbody', null, rows)) : h('p', { class: 'muted small' }, 'Още няма промо кодове.'),
+    h('p', { class: 'muted small' }, 'Отстъпката е от цената на сайта (с надценката). Цената с промо код никога не пада под нетната цена на оператора.'));
 }
 
 // ---------- общи ----------

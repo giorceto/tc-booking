@@ -16,6 +16,7 @@ const { HttpError, sendJson, readJson, clientIp, isHttps, parseCookies } = requi
 const { Sessions, LoginGuard } = require('../auth');
 const { NEXT, STATUSES } = require('../bookings/store');
 const { toLatin } = require('./translit');
+const { parsePromo, promoLabel, promoValid } = require('../promo');
 
 const COOKIE = 'tcb_sid';
 const STATIC_DIR = path.join(__dirname, 'static');
@@ -49,6 +50,9 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
     ['GET', /^\/admin\/api\/areas$/, areaList],
     ['POST', /^\/admin\/api\/markup$/, markupSet],
+    ['GET', /^\/admin\/api\/promos$/, promoList],
+    ['POST', /^\/admin\/api\/promos$/, promoAdd],
+    ['POST', /^\/admin\/api\/promos\/([^/]{1,60})\/(on|off|delete)$/, promoAction],
     ['POST', /^\/admin\/api\/areas\/([A-Z ]{2,40})$/, areaSet],
     ['GET', /^\/admin\/api\/catalog\/refresh$/, refreshStatus],
     ['POST', /^\/admin\/api\/catalog\/refresh$/, refreshStart],
@@ -288,6 +292,43 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     for (const h of catalog.data.hotels) if (h.area) count.set(h.area, (count.get(h.area) || 0) + 1);
     const list = [...count].filter(([area, n]) => n >= 3 || settings.isHidden(area)).map(([area, hotels]) => ({ area, hotels, hidden: settings.isHidden(area) }));
     return { areas: list.sort((x, y) => y.hotels - x.hotels), markupPct: settings.markupPct };
+  }
+
+  // ---------- промо кодове ----------
+  function promoList() {
+    if (!settings) throw new HttpError(404, 'Няма настройки');
+    const uses = new Map();
+    for (const b of bookings.list()) if (b.public.promo) uses.set(b.public.promo.code, (uses.get(b.public.promo.code) || 0) + 1);
+    return {
+      promos: settings.promos().map((p) => ({ ...p, label: promoLabel(p), valid: promoValid(p), uses: uses.get(p.code) || 0 })),
+    };
+  }
+
+  function promoAdd({ body, user }) {
+    if (!settings) throw new HttpError(404, 'Няма настройки');
+    let p;
+    try {
+      p = parsePromo(body);
+      settings.addPromo(p, user);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: нов промо код ${p.code} ${promoLabel(p)}${p.until ? ` до ${p.until}` : ''}`);
+    return promoList();
+  }
+
+  function promoAction({ match, user }) {
+    if (!settings) throw new HttpError(404, 'Няма настройки');
+    const code = decodeURIComponent(match[1]);
+    const action = match[2];
+    try {
+      if (action === 'delete') settings.removePromo(code);
+      else settings.updatePromo(code, { active: action === 'on' });
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: промо код ${code} ${action === 'delete' ? 'изтрит' : action === 'on' ? 'пуснат' : 'спрян'}`);
+    return promoList();
   }
 
   function markupSet({ body, user }) {

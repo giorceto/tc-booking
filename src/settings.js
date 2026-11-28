@@ -2,10 +2,12 @@
 //   hiddenAreas – курорти, които не се показват на сайта и не се търсят при операторите
 //                 (по подразбиране Истанбул – ще се пусне по-късно)
 //   markupPct   – надценка върху нетната цена на оператора, % (по подразбиране 13)
+//   promoCodes  – промо кодове: [{ code, type: 'pct'|'eur', value, until, active, note, createdAt, by }]
 const fs = require('fs');
 const path = require('path');
+const { promoValid, normCode } = require('./promo');
 
-const DEFAULTS = { hiddenAreas: ['ISTANBUL'], markupPct: 13 };
+const DEFAULTS = { hiddenAreas: ['ISTANBUL'], markupPct: 13, promoCodes: [] };
 
 class Settings {
   constructor(file) {
@@ -40,6 +42,39 @@ class Settings {
     this.save();
     if (this.onChange) this.onChange();
     return n;
+  }
+
+  // ---------- промо кодове ----------
+  promos() {
+    return this.data.promoCodes || [];
+  }
+
+  // Важащ днес промо код (без значение главни/малки) или null
+  findPromo(code) {
+    const c = normCode(code);
+    const p = c && this.promos().find((x) => x.code === c);
+    return promoValid(p) ? p : null;
+  }
+
+  addPromo(p, by = '') {
+    if (this.promos().some((x) => x.code === p.code)) throw new Error(`Код ${p.code} вече има`);
+    this.data.promoCodes = [...this.promos(), { ...p, createdAt: new Date().toISOString(), by }];
+    this.save();
+  }
+
+  updatePromo(code, patch) {
+    const p = this.promos().find((x) => x.code === normCode(code));
+    if (!p) throw new Error('Няма такъв промо код');
+    if ('active' in patch) p.active = Boolean(patch.active);
+    this.save();
+    return p;
+  }
+
+  removePromo(code) {
+    const c = normCode(code);
+    if (!this.promos().some((x) => x.code === c)) throw new Error('Няма такъв промо код');
+    this.data.promoCodes = this.promos().filter((x) => x.code !== c);
+    this.save();
   }
 
   isHidden(area) {

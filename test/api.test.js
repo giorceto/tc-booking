@@ -199,7 +199,7 @@ test('търсене със стрийминг (SSE): части по хотел
   const events = parseSse(r.text);
   const parts = events.filter((e) => e.event === 'part');
   assert.ok(parts.length >= 2, `очакват се поне 2 части, има ${parts.length}`);
-  assert.deepStrictEqual(events.at(-1), { event: 'done', data: { count: 2, incomplete: false } });
+  assert.deepStrictEqual(events.at(-1), { event: 'done', data: { count: 2, incomplete: false, promo: null } });
 
   const merged = new Map();
   for (const p of parts) for (const h of p.data.hotels) merged.set(h.hotelId, h);
@@ -237,7 +237,7 @@ test('проверка на цената: промяна, изчезнала о�
   const std = r.json.hotels[0].options.find((o) => o.roomGroup === 'Стандартна'); // от BBB, 1100 нетна
 
   let c = await api(`/api/offer/${std.offerKey}/recheck`, { method: 'POST' });
-  assert.deepStrictEqual(c.json, { offerKey: std.offerKey, price: 1210, previousPrice: 1210, changed: false, currency: 'EUR', available: true, onRequest: false });
+  assert.deepStrictEqual(c.json, { offerKey: std.offerKey, price: 1210, previousPrice: 1210, changed: false, currency: 'EUR', available: true, onRequest: false, promo: null });
 
   w.s.bbb.TESTP[0] = { ...w.s.bbb.TESTP[0], total: 1150, status: 'RQ' };
   c = await api(`/api/offer/${std.offerKey}/recheck`, { method: 'POST' });
@@ -414,4 +414,89 @@ test('страницата за търсене: относителни адре�
   assert.strictEqual((await api('/site.css')).status, 200);
   const files = [r.text, js.text, (await api('/site.css')).text].join('\n');
   for (const x of ['SUMMER', 'Summer', 'ANEA', 'Anea', 'IRELS', 'Irels', 'SONAR', 'Sonar', 'AKAY', 'Akay', 'PENINSULA', 'Peninsula', 'admin/']) assert.ok(!files.includes(x), `страницата споменава "${x}"`);
+});
+
+test('промо код: задраскана цена, никога под нетната, проверка, резервация; изтекъл/спрян – без отстъпка', async (t) => {
+  const { Settings } = require('../src/settings');
+  const { parsePromo } = require('../src/promo');
+  const w = world();
+  const settings = new Settings(path.join(w.dir, 'settings.json'));
+  settings.addPromo(parsePromo({ code: 'лято10', type: 'pct', value: 5 }));
+  settings.addPromo(parsePromo({ code: 'BIG', type: 'pct', value: 50 }));
+  settings.addPromo(parsePromo({ code: 'OLD', type: 'pct', value: 5, until: '01.01.2020' }));
+  settings.addPromo({ ...parsePromo({ code: 'OFF', type: 'eur', value: 20 }), active: false });
+  const api = await start(w, { settings });
+  t.after(() => w.close());
+
+  assert.deepStrictEqual((await api('/api/promo/%D0%9B%D0%AF%D0%A2%D0%9E10')).json, { code: 'ЛЯТО10', label: '−5%' });
+  assert.deepStrictEqual((await api('/api/promo/' + encodeURIComponent('лято10'))).json.code, 'ЛЯТО10', 'малки/главни без значение');
+  for (const bad of ['OLD', 'OFF', 'NOPE']) assert.strictEqual((await api(`/api/promo/${bad}`)).status, 404, bad);
+
+  // търсене с промо код: H1 стандартна – нетна 1100, продажна 1210 (+10 %), −5 % = 1150 (1149.5 нагоре)
+  let r = await api(`/api/search?hotel=H1&date=${DATE}&nights=7&adults=2&promo=${encodeURIComponent('лято10')}`);
+  assert.deepStrictEqual(r.json.promo, { code: 'ЛЯТО10', label: '−5%' });
+  const std = r.json.hotels[0].options.find((o) => o.roomGroup === 'Стандартна');
+  assert.deepStrictEqual([std.price, std.priceBefore], [1150, 1210]);
+  assert.deepStrictEqual([r.json.hotels[0].fromPrice, r.json.hotels[0].fromPriceBefore], [1150, 1210]);
+  // −50 % би било 605 – под нетната 1100 -> цената спира на нетната
+  r = await api(`/api/search?hotel=H1&date=${DATE}&nights=7&adults=2&promo=BIG`);
+  assert.strictEqual(r.json.hotels[0].options.find((o) => o.roomGroup === 'Стандартна').price, 1100);
+  // изтекъл код – без отстъпка, promo: null
+  r = await api(`/api/search?hotel=H1&date=${DATE}&nights=7&adults=2&promo=OLD`);
+  assert.strictEqual(r.json.promo, null);
+  assert.ok(!('priceBefore' in r.json.hotels[0].options[0]));
+
+  // проверка на цената с промо код
+  const c = await api(`/api/offer/${std.offerKey}/recheck?promo=${encodeURIComponent('лято10')}`, { method: 'POST' });
+  assert.deepStrictEqual([c.json.price, c.json.priceBefore, c.json.changed], [1150, 1210, false]);
+
+  // резервация с промо код
+  const book = (extra) => api('/api/booking', { method: 'POST', body: { offerKey: std.offerKey, expectedPrice: 1150, contact, guests: guests2, promo: 'лято10', ...extra } });
+  const b = await book();
+  assert.strictEqual(b.status, 201);
+  assert.deepStrictEqual([b.json.price, b.json.priceBefore, b.json.promo], [1150, 1210, { code: 'ЛЯТО10', label: '−5%' }]);
+  noLeaks(b.text);
+  const saved = w.bookings.get(b.json.bookingId);
+  assert.deepStrictEqual(saved.internal.promo, { code: 'ЛЯТО10', type: 'pct', value: 5 });
+  assert.strictEqual(saved.internal.sellBeforePromo, 1210);
+  assert.strictEqual(saved.internal.net, 1100);
+
+  // кодът е спрян преди изпращане -> 409, цената без отстъпка
+  settings.updatePromo('ЛЯТО10', { active: false });
+  const b2 = await book({ guests: [{ firstName: 'A', lastName: 'B' }, { firstName: 'C', lastName: 'D' }] });
+  assert.strictEqual(b2.status, 409);
+  assert.strictEqual(b2.json.reason, 'promo_invalid');
+  assert.strictEqual(b2.json.price, 1210);
+});
+
+test('админ: промо кодове – добавяне, спиране, изтриване, брой ползвания', async (t) => {
+  const { Settings } = require('../src/settings');
+  const { Users } = require('../src/auth');
+  const { createAdmin } = require('../src/admin/routes');
+  const w = world();
+  const settings = new Settings(path.join(w.dir, 'settings.json'));
+  const users = new Users(path.join(w.dir, 'u.json'));
+  users.add('ana', 'много-тайна-парола');
+  const api = await start(w, { settings, admin: createAdmin({ bookings: w.bookings, users, settings, log: w.log }) });
+  t.after(() => w.close());
+  const login = await api('/admin/api/login', { method: 'POST', body: { user: 'ana', password: 'много-тайна-парола' } });
+  const Cookie = login.headers.get('set-cookie').split(';')[0];
+  const post = (p, body = {}) => api(p, { method: 'POST', body, headers: { Cookie } });
+
+  let r = await post('/admin/api/promos', { code: 'summer26', type: 'eur', value: '50', until: '31.08.2027', note: 'бюлетин' });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.json.promos.map((p) => [p.code, p.label, p.until, p.valid, p.uses, p.by]), [['SUMMER26', '−50 €', '2027-08-31', true, 0, 'ana']]);
+  assert.strictEqual((await post('/admin/api/promos', { code: 'SUMMER26', type: 'pct', value: 5 })).status, 400, 'вече има');
+  assert.strictEqual((await post('/admin/api/promos', { code: 'X', type: 'pct', value: 5 })).status, 400);
+  assert.strictEqual((await post('/admin/api/promos', { code: 'MUCH', type: 'pct', value: 70 })).status, 400, 'над 50 %');
+  assert.strictEqual((await post('/admin/api/promos', { code: 'BADDATE', type: 'pct', value: 5, until: '31.02.2027' })).status, 400);
+
+  r = await post('/admin/api/promos/SUMMER26/off');
+  assert.strictEqual(r.json.promos[0].valid, false);
+  assert.strictEqual((await api('/api/promo/SUMMER26')).status, 404, 'спрян – не важи на сайта');
+  r = await post('/admin/api/promos/SUMMER26/on');
+  assert.strictEqual(r.json.promos[0].valid, true);
+  assert.ok(w.logs.some((l) => /ana: нов промо код SUMMER26 −50 € до 2027-08-31/.test(l)));
+  r = await post('/admin/api/promos/SUMMER26/delete');
+  assert.deepStrictEqual(r.json.promos, []);
 });

@@ -18,6 +18,7 @@ const path = require('path');
 const { parseSearch, parseBooking } = require('./params');
 const { HttpError, sendJson, readJson, clientIp, RateLimit } = require('./http');
 const { normArea } = require('../catalog/normalize');
+const { promoPrice, promoLabel } = require('../promo');
 
 // Страницата за търсене и резервация: / (busrent.eu/book/), само относителни адреси
 const SITE_DIR = path.join(__dirname, '..', 'site', 'static');
@@ -47,6 +48,7 @@ const DUPLICATE_MS = 10 * 60 * 1000; // повторно изпратена ре
 // [брой, за колко ms]
 const LIMITS = {
   catalog: [120, 60000],
+  promo: [10, 60000], // проверка на промо код – срещу налучкване
   search: [20, 60000],
   recheck: [20, 60000],
   booking: [5, 10 * 60000],
@@ -68,6 +70,21 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
 
   // Хотел, който може да се търси: има връзка към поне един активен доставчик
   const hiddenArea = (a) => Boolean(settings) && settings.isHidden(a);
+  // Промо код: цените се смятат тук (на сървъра), никога под нетната цена на оператора
+  const findPromo = (code) => (settings && code ? settings.findPromo(code) : null);
+  const promoInfo = (p) => (p ? { code: p.code, label: promoLabel(p) } : null);
+  const withPromo = (promo) => (hotel) => {
+    if (!promo) return hotel;
+    const options = hotel.options
+      .map((o) => {
+        const x = engine.resolveOffer(o.offerKey);
+        const price = x ? promoPrice(o.price, x.offer.total, promo) : o.price;
+        return price < o.price ? { ...o, price, priceBefore: o.price } : o;
+      })
+      .sort((a, b) => a.price - b.price);
+    const best = options.find((o) => o.available) || options[0];
+    return { ...hotel, options, fromPrice: best ? best.price : hotel.fromPrice, fromPriceBefore: best && best.priceBefore ? best.priceBefore : undefined };
+  };
   const searchable = (h) => !hiddenArea(h.area) && engine.activeOps().some((op) => engine.trusted(h.links[op]));
   const publicHotel = (h) => ({ hotelId: h.id, name: h.name, area: h.area, stars: h.stars || null });
 
@@ -79,6 +96,7 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     ['POST', /^\/api\/offer\/([A-Za-z0-9_-]{8,64})\/recheck$/, recheck, 'recheck'],
     ['POST', /^\/api\/booking$/, booking, 'booking'],
     ['GET', /^\/api\/hotel\/(H\d+)$/, hotelInfo, 'catalog'],
+    ['GET', /^\/api\/promo\/([^/]{1,40})$/, promoCheck, 'promo'],
   ];
 
   async function handler(req, res) {
@@ -144,6 +162,19 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     return { areas: [...count].map(([area, hotels]) => ({ area, hotels })).sort((a, b) => b.hotels - a.hotels) };
   }
 
+  // Проверка на промо код от сайта: { code, label } или 404
+  function promoCheck({ match }) {
+    let code = '';
+    try {
+      code = decodeURIComponent(match[1]);
+    } catch {
+      /* лош адрес */
+    }
+    const p = findPromo(code);
+    if (!p) throw new HttpError(404, 'Невалиден или изтекъл промо код');
+    return promoInfo(p);
+  }
+
   // Снимки и описание на хотел (от нашия сайт). Без съдържание – само името.
   function hotelInfo({ match }) {
     const h = catalog.get(match[1]);
@@ -172,18 +203,20 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     if (area && hiddenArea(normArea(area))) throw new HttpError(404, 'Няма такъв курорт');
     const stream = query.stream === '1' || /text\/event-stream/.test(req.headers.accept || '');
     const run = (opts) => (hotel ? engine.searchHotel(hotel, params, opts) : engine.searchArea(area, params, opts));
+    const promo = findPromo(query.promo);
+    const decorate = (h) => withPromo(promo)(withContent(h));
     const t0 = Date.now();
     const done = (r) => {
       const errs = Object.keys(r.errors || {});
       log.info(`[search] ${hotel || area} ${params.date}/${params.nights}н/${params.adults}+${params.childAges.length}: ${r.count} хотела, ${Date.now() - t0} ms` +
         `${r.unlinked ? `, ${r.unlinked} оферти извън каталога` : ''}${errs.length ? `, грешки: ${JSON.stringify(r.errors)}` : ''}`);
-      return { count: r.count, incomplete: errs.length > 0 };
+      return { count: r.count, incomplete: errs.length > 0, promo: promoInfo(promo) };
     };
 
     if (!stream) {
       const r = await run({});
       const { count, incomplete } = done(r);
-      return { params: r.params, count, incomplete, hotels: r.hotels.map(withContent) };
+      return { params: r.params, count, incomplete, promo: promoInfo(promo), hotels: r.hotels.map(decorate) };
     }
 
     // SSE: събитие "part" при всеки нов отговор (само хотелите, които са нови или са се променили),
@@ -197,7 +230,7 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     res.write(': start\n\n');
     const sent = new Map(); // hotelId -> JSON, изпратен последно
     const sendDelta = (r) => {
-      const changed = r.hotels.map(withContent).filter((h) => {
+      const changed = r.hotels.map(decorate).filter((h) => {
         const j = JSON.stringify(h);
         if (sent.get(h.hotelId) === j) return false;
         sent.set(h.hotelId, j);
@@ -255,18 +288,23 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     return { r, h, pub: engine.publicView(r.offer, r.entry.params) };
   }
 
-  async function recheck({ match }) {
+  async function recheck({ match, query }) {
     const offerKey = match[1];
+    const promo = findPromo(query.promo);
     const { r, pub } = await freshOffer(offerKey);
-    log.info(`[recheck] ${r.entry.op} ${r.entry.hotelCode}: ${r.previousPrice} -> ${r.price} ${pub.currency}, ${r.status}`);
+    const price = promo ? promoPrice(r.price, r.net, promo) : r.price;
+    const previousPrice = promo ? promoPrice(r.previousPrice, r.previousNet, promo) : r.previousPrice;
+    log.info(`[recheck] ${r.entry.op} ${r.entry.hotelCode}: ${previousPrice} -> ${price} ${pub.currency}, ${r.status}${promo ? `, промо ${promo.code}` : ''}`);
     return {
       offerKey: pub.offerKey,
-      price: r.price,
-      previousPrice: r.previousPrice,
-      changed: r.price !== r.previousPrice,
+      price,
+      ...(price < r.price ? { priceBefore: r.price } : {}),
+      previousPrice,
+      changed: price !== previousPrice,
       currency: pub.currency,
       available: r.available,
       onRequest: !r.available,
+      promo: promoInfo(promo),
     };
   }
 
@@ -284,12 +322,17 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     if (dup) return { status: 200, body: { ...bookingView(dup), duplicate: true } };
 
     const { r, h, pub } = await freshOffer(offerKey);
-    if (r.price !== input.expectedPrice) {
-      log.info(`[booking] цената се промени ${r.entry.op} ${r.entry.hotelCode}: ${input.expectedPrice} -> ${r.price}`);
-      throw new HttpError(409, 'Цената се промени. Моля, потвърдете новата цена.', {
-        reason: 'price_changed',
+    // промо кодът – наново тук; ако вече не важи, клиентът вижда цената без него и потвърждава
+    const promoCode = String((body && body.promo) || '').trim();
+    const promo = findPromo(promoCode);
+    const price = promo ? promoPrice(r.price, r.net, promo) : r.price;
+    if (price !== input.expectedPrice) {
+      log.info(`[booking] цената се промени ${r.entry.op} ${r.entry.hotelCode}: ${input.expectedPrice} -> ${price}${promoCode && !promo ? ` (промо ${promoCode} не важи)` : ''}`);
+      throw new HttpError(409, promoCode && !promo ? 'Промо кодът вече не важи. Моля, потвърдете цената без отстъпка.' : 'Цената се промени. Моля, потвърдете новата цена.', {
+        reason: promoCode && !promo ? 'promo_invalid' : 'price_changed',
         offerKey: pub.offerKey,
-        price: r.price,
+        price,
+        ...(price < r.price ? { priceBefore: r.price } : {}),
         previousPrice: input.expectedPrice,
         currency: pub.currency,
         available: r.available,
@@ -313,7 +356,8 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
         nights: pub.nights,
         adults: r.entry.params.adults,
         childAges: r.entry.params.childAges || [],
-        price: pub.price,
+        price,
+        ...(price < r.price ? { priceBefore: r.price, promo: promoInfo(promo) } : {}),
         currency: pub.currency,
         onRequest: !r.available,
       },
@@ -338,11 +382,12 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
         supplierStatus: o.status,
         supplierStatusText: o.statusText || '',
         markupPct: engine.markupPct,
+        ...(promo ? { promo: { code: promo.code, type: promo.type, value: promo.value }, sellBeforePromo: r.price } : {}),
         checkedAt: r.entry.checkedAt,
         sig,
       },
     });
-    log.info(`[booking] ${b.id}: ${h.id} ${h.name} при ${r.entry.op} ${r.entry.hotelCode}, нетна ${o.total}, продажна ${pub.price} ${pub.currency}${r.available ? '' : ', по запитване'}`);
+    log.info(`[booking] ${b.id}: ${h.id} ${h.name} при ${r.entry.op} ${r.entry.hotelCode}, нетна ${o.total}, продажна ${price} ${pub.currency}${promo ? ` (промо ${promo.code}, без него ${r.price})` : ''}${r.available ? '' : ', по запитване'}`);
     return { status: 201, body: bookingView(b) };
   }
 

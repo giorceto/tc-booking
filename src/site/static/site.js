@@ -24,6 +24,10 @@ const addDays = (d, n) => {
   return x.toISOString().slice(0, 10);
 };
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Sofia' });
+// Цена; ако има промо код – старата задраскана до новата
+const priceNode = (price, before, cur) => (before && before > price
+  ? h('span', { class: 'pp' }, h('s', { class: 'was', 'aria-label': `вместо ${money(before, cur)}` }, money(before, cur)), ' ', h('span', { class: 'now' }, money(price, cur)))
+  : money(price, cur));
 const pax = (adults, kids) => [plural(adults, 'възрастен', 'възрастни'), kids ? plural(kids, 'дете', 'деца') : ''].filter(Boolean).join(' + ');
 
 const AREA_BG = {
@@ -86,6 +90,8 @@ const S = {
   hotelId: null,
   prev: null, // запазеният списък, от който е отворен хотелът (за „← Всички хотели“ и Назад)
   roomSel: new Map(), // стая -> избран offerKey (изхранване)
+  promo: null, // { code, label } – приложен промо код (цените с отстъпка ги смята сървърът)
+  promoOpen: false,
 };
 const infoCache = new Map(); // H -> Promise със снимките и описанието от сайта
 const infoData = new Map(); // H -> заредените данни (null – няма); липсва – още се зарежда
@@ -113,6 +119,7 @@ function initForm() {
   });
   renderDatesText();
   renderPaxText();
+  renderPromo();
 }
 
 function readForm() {
@@ -428,6 +435,7 @@ async function search(params) {
   if (params.hotel) qs.set('hotel', params.hotel);
   else qs.set('area', params.area);
   if (params.childAges.length) qs.set('childAges', params.childAges.join(','));
+  if (S.promo) qs.set('promo', S.promo.code);
 
   try {
     const r = await fetch(`api/search?${qs}`, { headers: { Accept: 'text/event-stream' }, signal: ctrl.signal });
@@ -473,6 +481,10 @@ function onEvent(block) {
   } else if (event === 'done') {
     S.done = true;
     S.incomplete = d.incomplete;
+    if (S.promo && !d.promo) {
+      S.promo = null; // кодът вече не важи – цените са без отстъпка
+      renderPromo('Промо кодът вече не важи.');
+    }
     renderAll();
   } else if (event === 'error') fail(d.error);
 }
@@ -501,7 +513,7 @@ function visibleHotels() {
     const options = x.options.filter((o) => (!S.board || o.board === S.board) && (!S.onlyAvailable || o.available));
     if (!options.length) continue;
     const best = options.find((o) => o.available) || options[0];
-    out.push({ ...x, options, from: best.price, fromAvailable: best.available });
+    out.push({ ...x, options, from: best.price, fromBefore: best.priceBefore, fromAvailable: best.available });
   }
   return out.sort((a, b) => a.from - b.from);
 }
@@ -521,6 +533,7 @@ function renderAll() {
   if (!S.done) st.push(h('p', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), S.results.size ? `Търсим още… намерени ${plural(S.results.size, 'хотел', 'хотела')}` : 'Търсим най-добрите цени…'));
   else if (!S.results.size) st.push(h('p', { class: 'empty' }, 'Няма свободни хотели за тези дати. Пробвайте с други дати или друг курорт.'));
   else st.push(h('p', null, h('strong', null, plural(S.results.size, 'хотел', 'хотела')), ` · ${where} · ${when}`));
+  if (S.promo && S.results.size) st.push(h('p', { class: 'promo-on' }, `Промо код ${S.promo.code} (${S.promo.label}) е приложен – цените са с отстъпката.`));
   if (S.done && S.incomplete) st.push(h('p', { class: 'note' }, 'Част от цените не се заредиха. Опитайте отново след малко за пълен списък.'));
   $('status').replaceChildren(...st);
 
@@ -563,7 +576,7 @@ function hotelCard(x) {
         h('div', { class: 'area' }, areaName(x.area),
           x.rating ? h('span', { class: 'rating', title: `${x.reviews} отзива` }, ` · ★ ${x.rating.toFixed(1)}`, h('small', null, ` (${x.reviews})`)) : null),
         x.amenities && x.amenities.length ? amenList(x.amenities, 'amen') : null),
-      h('div', { class: 'from' }, h('small', null, 'от'), h('strong', null, money(x.from, x.currency)), h('small', null, `за ${plural(S.params.nights, 'нощувка', 'нощувки')}`))),
+      h('div', { class: 'from' }, h('small', null, 'от'), h('strong', null, priceNode(x.from, x.fromBefore, x.currency)), h('small', null, `за ${plural(S.params.nights, 'нощувка', 'нощувки')}`))),
     h('ul', { class: 'options' }, opts.map((o) => h('li', null,
       h('div', { class: 'room' },
         h('span', null, o.room || o.roomGroup),
@@ -572,7 +585,7 @@ function hotelCard(x) {
           o.seaView ? h('span', { class: 'tag sea' }, 'изглед към морето') : null,
           o.eb ? h('span', { class: 'tag eb' }, `ранно записване −${o.eb}%`) : null,
           o.available ? null : h('span', { class: 'tag rq' }, 'по запитване'))),
-      h('div', { class: 'price' }, money(o.price, o.currency)),
+      h('div', { class: 'price' }, priceNode(o.price, o.priceBefore, o.currency)),
       h('button', { class: 'primary small', onclick: () => openBooking(x, o) }, 'Резервирай')))),
     h('button', { class: 'see-hotel', type: 'button', onclick: open }, x.options.length > 3 ? `Виж хотела и всички ${x.options.length} варианта →` : 'Виж хотела →')));
 }
@@ -596,16 +609,20 @@ function hotelUrl(id) {
   const p = S.params;
   const qs = new URLSearchParams({ hotel: id, date: p.date, nights: p.nights, adults: p.adults });
   if (p.childAges.length) qs.set('childAges', p.childAges.join(','));
+  if (S.promo) qs.set('promo', S.promo.code);
   return `?${qs}`;
 }
 
 // От списъка към хотела – без ново търсене (цените вече са тук)
 function openHotel(x, { push = true } = {}) {
   if (S.view === 'list') {
-    S.prev = { params: S.params, results: S.results, done: S.done, incomplete: S.incomplete, shown: S.shown, board: S.board, onlyAvailable: S.onlyAvailable, scroll: window.scrollY, target: S.target, where: $('where').value };
+    S.prev = { params: S.params, results: S.results, done: S.done, incomplete: S.incomplete, shown: S.shown, board: S.board, onlyAvailable: S.onlyAvailable, scroll: window.scrollY, target: S.target, where: $('where').value, promo: S.promo ? S.promo.code : '' };
   }
   S.view = 'hotel';
   S.hotelId = x.hotelId;
+  // търсенето вече е за този хотел (ново търсене оттук – промо код, дати – остава на страницата му)
+  const { area, ...rest } = S.params;
+  S.params = { ...rest, hotel: x.hotelId };
   S.roomSel.clear();
   S.target = { hotel: x.hotelId, label: x.name };
   $('where').value = x.name;
@@ -618,7 +635,8 @@ function openHotel(x, { push = true } = {}) {
 function backToList() {
   const x = S.results.get(S.hotelId);
   const p = S.params;
-  const same = S.prev && ['date', 'nights', 'adults'].every((k) => S.prev.params[k] === p[k]) && S.prev.params.childAges.join() === p.childAges.join();
+  // запазеният списък – само ако е за същите дати, хора и промо код (иначе цените в него са други)
+  const same = S.prev && ['date', 'nights', 'adults'].every((k) => S.prev.params[k] === p[k]) && S.prev.params.childAges.join() === p.childAges.join() && S.prev.promo === (S.promo ? S.promo.code : '');
   if (same) {
     Object.assign(S, { params: S.prev.params, results: S.prev.results, done: S.prev.done, incomplete: S.prev.incomplete, shown: S.prev.shown, board: S.prev.board, onlyAvailable: S.prev.onlyAvailable, target: S.prev.target, view: 'list', hotelId: null });
     $('where').value = S.prev.where;
@@ -717,7 +735,8 @@ function renderHotelPage() {
           sec(/Разположение/i) ? h('li', null, h('strong', null, 'Разположение: '), firstSentence(sec(/Разположение/i).text)) : null),
         amenitiesBlock(info)),
       h('aside', { class: 'price-box' },
-        best ? [h('small', { class: 'muted' }, 'от'), h('div', { class: 'big' }, money(best.price, best.currency)), h('small', { class: 'muted' }, `общо за ${plural(p.nights, 'нощувка', 'нощувки')}, ${pax(p.adults, p.childAges.length)}`)]
+        best ? [h('small', { class: 'muted' }, 'от'), h('div', { class: 'big' }, priceNode(best.price, best.priceBefore, best.currency)), h('small', { class: 'muted' }, `общо за ${plural(p.nights, 'нощувка', 'нощувки')}, ${pax(p.adults, p.childAges.length)}`),
+          S.promo && best.priceBefore ? h('span', { class: 'tag promo' }, `промо код ${S.promo.code} ${S.promo.label}`) : null]
           : h('small', { class: 'muted' }, S.done ? 'Няма свободни стаи за тези дати' : 'Търсим цени…'),
         h('button', { type: 'button', class: 'primary', onclick: go('#h-rooms') }, 'Изберете стая'))),
     h('section', { id: 'h-rooms', class: 'h-section' },
@@ -772,9 +791,10 @@ function roomCard(x, g) {
         h('span', { class: 'diff' }, o === g.opts[0] ? money(o.price, o.currency) : `+${money(o.price - base, o.currency)}`)))),
     h('div', { class: 'tags' },
       sel.eb ? h('span', { class: 'tag eb' }, `ранно записване −${sel.eb}%`) : null,
+      sel.priceBefore && S.promo ? h('span', { class: 'tag promo' }, `промо ${S.promo.label}`) : null,
       sel.available ? h('span', { class: 'tag ok' }, 'потвърдени места') : h('span', { class: 'tag rq' }, 'по запитване')),
     h('div', { class: 'room-foot' },
-      h('div', null, h('div', { class: 'big' }, money(sel.price, sel.currency)), h('small', { class: 'muted' }, `общо за ${plural(S.params.nights, 'нощувка', 'нощувки')}`)),
+      h('div', null, h('div', { class: 'big' }, priceNode(sel.price, sel.priceBefore, sel.currency)), h('small', { class: 'muted' }, `общо за ${plural(S.params.nights, 'нощувка', 'нощувки')}`)),
       h('button', { type: 'button', class: 'primary', onclick: () => openBooking(x, sel) }, 'Резервирай')));
 }
 
@@ -818,6 +838,7 @@ function saveUrl(p) {
   qs.set('nights', p.nights);
   qs.set('adults', p.adults);
   if (p.childAges.length) qs.set('childAges', p.childAges.join(','));
+  if (S.promo) qs.set('promo', S.promo.code);
   history.replaceState(null, '', `?${qs}`);
 }
 
@@ -841,17 +862,23 @@ function loadUrl() {
   S.childAges = (q.get('childAges') || '').split(',').filter((x) => /^\d+$/.test(x) && Number(x) <= 17).slice(0, 3);
   renderDatesText();
   renderPaxText();
-  if (S.target && S.checkIn) {
-    const r = readForm();
-    if (r.params) search(r.params);
-  } else if (S.target && hotel) openCal();
+  const go = () => {
+    if (S.target && S.checkIn) {
+      const r = readForm();
+      if (r.params) search(r.params);
+    } else if (S.target && hotel) openCal();
+  };
+  // промо код от адреса (реклами, бюлетини): първо се проверява, после се търси
+  const promo = q.get('promo');
+  if (promo && !S.promo) applyPromo(promo, { search: false }).then(go);
+  else go();
 }
 
 // ---------- резервация ----------
 const B = { hotel: null, option: null, price: null, sending: false };
 
 function openBooking(x, o) {
-  Object.assign(B, { hotel: x, option: o, price: o.price, sending: false });
+  Object.assign(B, { hotel: x, option: o, price: o.price, priceBefore: o.priceBefore, sending: false });
   const p = S.params;
   const dlg = $('book');
   const priceBox = h('div', { class: 'b-price' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Проверяваме цената…');
@@ -870,9 +897,9 @@ function openBooking(x, o) {
 
 async function recheck(priceBox, notice, form) {
   const o = B.option;
-  const showPrice = () => priceBox.replaceChildren(h('span', null, 'Обща цена'), h('strong', null, money(B.price, o.currency)));
+  const showPrice = () => priceBox.replaceChildren(h('span', null, 'Обща цена', S.promo && B.priceBefore ? h('small', { class: 'muted' }, ` · промо код ${S.promo.code}`) : null), h('strong', null, priceNode(B.price, B.priceBefore, o.currency)));
   try {
-    const r = await fetch(`api/offer/${encodeURIComponent(o.offerKey)}/recheck`, { method: 'POST' });
+    const r = await fetch(`api/offer/${encodeURIComponent(o.offerKey)}/recheck${S.promo ? `?promo=${encodeURIComponent(S.promo.code)}` : ''}`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     if (r.status === 410) {
       priceBox.replaceChildren();
@@ -886,6 +913,7 @@ async function recheck(priceBox, notice, form) {
       return;
     }
     B.price = j.price;
+    B.priceBefore = j.priceBefore;
     showPrice();
     const msgs = [];
     if (j.changed) msgs.push(h('p', { class: 'note' }, `Цената току-що се промени: беше ${money(j.previousPrice, j.currency)}, сега е ${money(j.price, j.currency)}.`));
@@ -949,7 +977,7 @@ async function submitBooking(e, form, err, send) {
     form.elements[`g${badBirth}-birth`].focus();
     return;
   }
-  const body = { offerKey: B.option.offerKey, expectedPrice: B.price, contact: { name: v('name'), email: v('email'), phone: v('phone') }, guests, note: v('note') };
+  const body = { offerKey: B.option.offerKey, expectedPrice: B.price, contact: { name: v('name'), email: v('email'), phone: v('phone') }, guests, note: v('note'), ...(S.promo ? { promo: S.promo.code } : {}) };
   B.sending = true;
   send.disabled = true;
   err.textContent = '';
@@ -957,10 +985,15 @@ async function submitBooking(e, form, err, send) {
     const r = await fetch('api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (r.status === 201 || r.status === 200) return done(j);
-    if (r.status === 409 && j.reason === 'price_changed') {
+    if (r.status === 409 && (j.reason === 'price_changed' || j.reason === 'promo_invalid')) {
       B.price = j.price;
-      document.querySelector('.b-price').replaceChildren(h('span', null, 'Обща цена'), h('strong', null, money(j.price, j.currency)));
-      err.textContent = `Цената току-що се промени на ${money(j.price, j.currency)}. Натиснете „Изпрати заявката“ отново, за да я потвърдите.`;
+      B.priceBefore = j.priceBefore;
+      if (j.reason === 'promo_invalid') {
+        S.promo = null;
+        renderPromo('Промо кодът вече не важи.');
+      }
+      document.querySelector('.b-price').replaceChildren(h('span', null, 'Обща цена'), h('strong', null, priceNode(j.price, j.priceBefore, j.currency)));
+      err.textContent = `${j.reason === 'promo_invalid' ? 'Промо кодът вече не важи. ' : 'Цената току-що се промени. '}Новата цена е ${money(j.price, j.currency)}. Натиснете „Изпрати заявката“ отново, за да я потвърдите.`;
     } else {
       err.textContent = j.error || 'Заявката не беше изпратена. Опитайте отново.';
       if (r.status === 410) send.hidden = true;
@@ -993,11 +1026,66 @@ function done(j) {
     h('div', { class: 'b-head' }, h('h2', { id: 'book-title' }, 'Заявката е изпратена'), h('button', { class: 'close', 'aria-label': 'Затвори', onclick: () => dlg.close() }, '×')),
     h('div', { class: 'b-done' },
       h('p', null, 'Номер на заявката: ', h('strong', { class: 'ref' }, j.bookingId)),
-      h('p', null, `${j.hotelName} · ${day(j.checkIn)}, ${plural(j.nights, 'нощувка', 'нощувки')} · ${money(j.price, j.currency)}`),
+      h('p', null, `${j.hotelName} · ${day(j.checkIn)}, ${plural(j.nights, 'нощувка', 'нощувки')} · `, priceNode(j.price, j.priceBefore, j.currency), j.promo ? ` (промо код ${j.promo.code})` : ''),
       h('p', null, j.onRequest
         ? 'Стаята е по запитване. Ще проверим свободните места и ще се свържем с вас до края на работния ден.'
         : 'Ще потвърдим резервацията при хотела и ще се свържем с вас до края на работния ден.'),
       h('button', { class: 'primary', onclick: () => dlg.close() }, 'Добре')));
+}
+
+// ---------- промо код ----------
+function renderPromo(msg = '') {
+  const box = $('promo');
+  if (S.promo) {
+    box.replaceChildren(h('span', { class: 'promo-chip' }, 'Промо код ', h('strong', null, S.promo.code), ` · ${S.promo.label}`,
+      h('button', { type: 'button', class: 'x', 'aria-label': 'Махни промо кода', onclick: removePromo }, '×')));
+    return;
+  }
+  if (!S.promoOpen) {
+    box.replaceChildren(h('button', { type: 'button', class: 'link promo-open', onclick: () => { S.promoOpen = true; renderPromo(); box.querySelector('input').focus(); } }, 'Имате промо код?'),
+      msg ? h('span', { class: 'promo-err', role: 'alert' }, msg) : null);
+    return;
+  }
+  const input = h('input', { type: 'text', placeholder: 'Промо код', maxlength: '20', 'aria-label': 'Промо код', autocomplete: 'off', spellcheck: 'false',
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); btn.click(); } } });
+  const err = h('span', { class: 'promo-err', role: 'alert' }, msg);
+  const btn = h('button', { type: 'button', class: 'primary small', onclick: async () => {
+    if (!input.value.trim()) return input.focus();
+    btn.disabled = true;
+    const res = await applyPromo(input.value);
+    btn.disabled = false;
+    if (res !== true) {
+      err.textContent = res;
+      input.select();
+    }
+  } }, 'Приложи');
+  box.replaceChildren(h('span', { class: 'promo-form' }, input, btn, h('button', { type: 'button', class: 'link', onclick: () => { S.promoOpen = false; renderPromo(); } }, 'Отказ')), err);
+}
+
+// Проверява кода при сървъра; при успех – търси наново (цените с отстъпка ги смята сървърът)
+async function applyPromo(code, { search: again = true } = {}) {
+  try {
+    const r = await fetch(`api/promo/${encodeURIComponent(String(code).trim())}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = r.status === 429 ? 'Твърде много опити. Опитайте след минута.' : j.error || 'Невалиден промо код';
+      if (!again) renderPromo(msg);
+      return msg;
+    }
+    S.promo = { code: j.code, label: j.label };
+    S.promoOpen = false;
+    renderPromo();
+    if (again && S.params) search(S.params);
+    return true;
+  } catch {
+    return 'Няма връзка. Опитайте отново.';
+  }
+}
+
+function removePromo() {
+  S.promo = null;
+  renderPromo();
+  if (S.params) search(S.params);
 }
 
 // ---------- популярни курорти (докато още няма търсене) ----------

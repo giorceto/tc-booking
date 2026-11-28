@@ -219,6 +219,7 @@ class SearchEngine {
     }
     if (!best) return { found: false, reason: 'gone', entry: x };
     const previousPrice = this.sellPrice(x.offer.total);
+    const previousNet = x.offer.total;
     // офертата в паметта става новата – резервацията след проверката ползва точно нея
     Object.assign(x, { at: Date.now(), offer: best, checkedAt: new Date().toISOString() });
     return {
@@ -228,6 +229,7 @@ class SearchEngine {
       net: best.total,
       price: this.sellPrice(best.total),
       previousPrice,
+      previousNet,
       available: best.status === 'OK',
       status: best.status,
     };

@@ -68,7 +68,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .seg-value.placeholder { color: var(--muted); }
 .go { flex: none; height: 54px; padding: 0 30px; border: 0; border-radius: 999px; background: var(--brand); color: var(--brand-text); font-weight: 700; font-size: 16px; cursor: pointer; margin-left: 6px; }
 .go:hover { background: var(--brand-dark); }
-.perks { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 14px 8px 0; padding: 0; font-size: 14px; color: var(--muted); }
+.card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; margin: 14px 8px 0; }
+.perks { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; font-size: 14px; color: var(--muted); }
+
+/* промо код */
+.promo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; }
+.promo-open { padding: 0 !important; font-weight: 600; }
+.promo-form { display: inline-flex; align-items: center; gap: 6px; }
+.promo-form input { width: 150px; height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); text-transform: uppercase; letter-spacing: .03em; }
+.promo-form .link { padding: 0 4px !important; }
+.promo-err { color: var(--danger); font-size: 13px; }
+.promo-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--eb); color: var(--eb-text); border-radius: 999px; padding: 4px 6px 4px 12px; font-weight: 600; }
+.promo-chip .x { border: 0; background: none; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 6px; }
+.promo-on { color: var(--eb-text); font-weight: 600; }
+.pp { display: inline-flex; align-items: baseline; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pp .was { color: var(--muted); font-weight: 400; font-size: .72em; }
+.tag.promo { background: var(--eb); color: var(--eb-text); display: inline-block; margin-top: 6px; justify-self: start; }
 .perks li::before { content: '✓'; color: var(--eb-text); font-weight: 700; margin-right: 6px; }
 .form-error { color: var(--danger); min-height: 1.5em; margin: 10px auto 0; max-width: 1080px; padding: 0 28px; }
 
@@ -217,6 +232,7 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
 /* изгледи: на страницата на хотела няма голямата снимка и списъка */
 .hotel-page { padding-bottom: 20px; }
 .view-hotel .hero, .view-hotel #popular, .view-hotel #status, .view-hotel #filters, .view-hotel #results, .view-hotel #more, .view-hotel .perks { display: none !important; }
+.view-hotel .card-foot { margin-top: 10px; justify-content: flex-end; }
 .view-hotel .search-card { margin-top: 12px; padding: 14px; border-radius: 24px; box-shadow: 0 4px 18px rgba(16, 24, 40, .08); }
 
 .crumbs { margin: 12px 0 10px; }
