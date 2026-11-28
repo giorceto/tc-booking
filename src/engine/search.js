@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { boardGroup, BOARD_LABEL, roomGroup, seaView, normArea, parseStars } = require('../catalog/normalize');
+const { boardGroup, boardKeys, BOARD_LABEL, roomGroup, seaView, normArea, parseStars } = require('../catalog/normalize');
 const { roomInfo } = require('../catalog/rooms');
 
 const OFFER_TTL_MS = 30 * 60 * 1000; // колко време важи offerKey (после клиентът търси наново)
@@ -140,17 +140,21 @@ class SearchEngine {
         continue;
       }
       if (o.total == null || !(o.total > 0)) continue;
-      // една и съща стая (по характеристики, не по името при оператора) + изхранване
-      const key = `${this.roomOf(h.id, o).key}|${boardGroup(o.board, o.boardName)}`;
       if (this.rooms) this.rooms.observe(h.id, o);
-      if (!byHotel.has(h.id)) byHotel.set(h.id, { hotel: h, groups: new Map() });
-      const g = byHotel.get(h.id).groups;
-      const cur = g.get(key);
-      if (!cur || better(o, cur)) g.set(key, o);
+      if (!byHotel.has(h.id)) byHotel.set(h.id, { hotel: h, offers: [] });
+      byHotel.get(h.id).offers.push(o);
     }
     const hotels = [];
-    for (const { hotel: h, groups } of byHotel.values()) {
-      const options = [...groups.values()].map((o) => this.publicOffer(h, o, params)).sort((a, b) => a.price - b.price);
+    for (const { hotel: h, offers } of byHotel.values()) {
+      // една и съща стая (по характеристики, не по името при оператора) + изхранване (концепциите – виж boardKeys)
+      const boards = boardKeys(offers);
+      const groups = new Map();
+      for (const o of offers) {
+        const key = `${this.roomOf(h.id, o).key}|${boards.get(o).boardKey}`;
+        const cur = groups.get(key);
+        if (!cur || better(o, cur)) groups.set(key, o);
+      }
+      const options = [...groups.values()].map((o) => this.publicOffer(h, o, params, boards.get(o))).sort((a, b) => a.price - b.price);
       const bestAvail = options.find((x) => x.available) || options[0];
       hotels.push({
         hotelId: h.id,
@@ -167,15 +171,17 @@ class SearchEngine {
   }
 
   // Офертата, каквато я вижда клиентът; запомня offerKey -> вътрешни данни (за resolveOffer)
-  publicOffer(h, o, params) {
-    const view = this.publicView(o, params, h.id);
-    this.offers.set(view.offerKey, { at: Date.now(), op: o.op, hotelId: h.id, hotelCode: o.hotelCode, offer: o, params });
+  publicOffer(h, o, params, board) {
+    const view = this.publicView(o, params, h.id, board);
+    this.offers.set(view.offerKey, { at: Date.now(), op: o.op, hotelId: h.id, hotelCode: o.hotelCode, offer: o, params, board });
     return view;
   }
 
-  // Само изгледът за клиента, без да се записва нищо
-  publicView(o, params, hotelId) {
+  // Само изгледът за клиента, без да се записва нищо. board – изхранването от търсенето (boardKeys), ако е известно
+  publicView(o, params, hotelId, board) {
     const bg = boardGroup(o.board, o.boardName);
+    const generic = BOARD_LABEL[bg] || o.boardName || bg;
+    const b = board || { board: bg, boardKey: bg, boardLabel: generic, boardGroupLabel: generic };
     const room = this.roomOf(hotelId, o);
     return {
       offerKey: this.offerKey(o, params),
@@ -183,8 +189,10 @@ class SearchEngine {
       roomKey: room.key,
       roomGroup: roomGroup(o.room, o.roomType),
       seaView: seaView(o.room, o.roomType, o.roomTypeCode),
-      board: bg,
-      boardLabel: BOARD_LABEL[bg] || o.boardName || bg,
+      board: b.board, // група: UAI, AI, HB… (за филтъра)
+      boardKey: b.boardKey, // = board, или board~КОНЦЕПЦИЯ, когато хотелът има няколко (TITANIC DELUXE)
+      boardLabel: b.boardLabel,
+      boardGroupLabel: b.boardGroupLabel,
       price: this.sellPrice(o.total),
       currency: o.currency || 'EUR',
       available: o.status === 'OK',

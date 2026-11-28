@@ -99,6 +99,72 @@ function boardGroup(code, name) {
 
 const BOARD_LABEL = { UAI: 'Ultra All Inclusive', AI: 'All Inclusive', 'FB+': 'Full Board+', FB: 'Full Board', 'HB+': 'Half Board+', HB: 'Half Board', BB: 'Закуска', RO: 'Само нощувка' };
 
+// Концепцията на хотела в името на изхранването, без общите думи:
+//   „DELUXE ULTRA ALL INCLUSIVE“ -> DELUXE, „EXCELLENCE INCLUSIVE“ -> EXCELLENCE, „EXAI“ -> EX (само код),
+//   „ALL INCLUSIVE PLUS“ / „AI+“ -> PLUS, „ULTRA ALL INCLUSIVE“ -> '' (без концепция)
+const BOARD_WORDS = new Set(['ULTRA', 'ULTIMATE', 'ALL', 'INCLUSIVE', 'INCL', 'INC', 'AI', 'UAI', 'UALL', 'ULAI', 'UTAI', 'ULTA', 'FULL', 'HALF', 'BOARD', 'BED', 'AND', 'BREAKFAST', 'ROOM', 'ONLY', 'BB', 'HB', 'FB', 'RO', 'SC', 'OB', 'SELF', 'CATERING', 'WITH', 'CONCEPT', 'SERVICE', 'PACKAGE']);
+function boardConcept(code, name) {
+  const clean = (x) => translit(x).replace(/\+/g, ' PLUS ').replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = (clean(name) || clean(code)).split(' ').filter(Boolean);
+  if (words.length === 1) {
+    const m = words[0].match(/^([A-Z]{1,4})AI$/); // EXAI -> EX, HCAI -> HC; ULAI/UTAI са ултра без концепция
+    if (m && !/^(U|UL|UT)$/.test(m[1])) return m[1];
+  }
+  return words.filter((w) => !BOARD_WORDS.has(w) && !/^\d+$/.test(w)).join(' ');
+}
+
+// „EX“ е съкращение на „EXCELLENCE“ (начало), „HC“ – на „HIGH CLASS“ (първите букви)
+const abbrevOf = (short, long) => short !== long && (long.startsWith(short) || long.split(' ').map((w) => w[0]).join('') === short);
+
+const titleCase = (s) => s.toLowerCase().replace(/(^|[\s'(-])([a-zа-я])/g, (m, a, b) => a + b.toUpperCase()).replace(/\b(Ai|Uai|Fb|Hb|Bb)\b/g, (x) => x.toUpperCase());
+
+/**
+ * Изхранването на всяка оферта на един хотел: { board, boardKey, boardLabel, boardGroupLabel }.
+ * Обикновено концепциите се сливат: „EXCELLENCE INCLUSIVE“ при един оператор и „ALL INCLUSIVE“ при друг
+ * са едно изхранване (в 95% от хотелите е така). Само ако някой оператор дава за хотела поне две различни
+ * концепции в една група (TITANIC DELUXE: „ULTRA ALL INCLUSIVE“ и „DELUXE ALL INCLUSIVE“), групата се разделя
+ * по концепции и всяка е отделен ред с името на хотела.
+ * offers: [{ op, board, boardName }] -> Map(оферта -> изхранване)
+ */
+function boardKeys(offers) {
+  const info = offers.map((o) => ({ o, g: boardGroup(o.board, o.boardName), c: boardConcept(o.board, o.boardName) }));
+  // съкращенията към пълното име (EX -> EXCELLENCE), ако е еднозначно
+  const byGroup = new Map();
+  for (const x of info) (byGroup.get(x.g) || byGroup.set(x.g, new Set()).get(x.g)).add(x.c);
+  for (const x of info) {
+    if (!x.c) continue;
+    const longer = [...byGroup.get(x.g)].filter((c) => c && abbrevOf(x.c, c));
+    if (longer.length === 1) x.c = longer[0];
+  }
+  // кои групи се делят: оператор с поне 2 различни концепции в групата
+  const perOp = new Map();
+  for (const x of info) {
+    const k = `${x.g}\u0000${x.o.op}`;
+    (perOp.get(k) || perOp.set(k, new Set()).get(k)).add(x.c);
+  }
+  const split = new Set([...perOp].filter(([, set]) => set.size > 1).map(([k]) => k.split('\u0000')[0]));
+  // имената на редовете: най-пълното име при операторите (не кода)
+  const names = new Map();
+  for (const x of info) {
+    if (!split.has(x.g) || !x.c) continue;
+    const k = `${x.g}~${x.c}`;
+    const n = translit(x.o.boardName).replace(/\s+/g, ' ').trim();
+    if (n.split(' ').length > 1 && (!names.has(k) || n.length > names.get(k).length)) names.set(k, n);
+  }
+  const out = new Map();
+  for (const x of info) {
+    const generic = BOARD_LABEL[x.g] || x.o.boardName || x.g;
+    if (!split.has(x.g) || !x.c) {
+      out.set(x.o, { board: x.g, boardKey: x.g, boardLabel: generic, boardGroupLabel: generic });
+      continue;
+    }
+    const k = `${x.g}~${x.c}`;
+    const label = names.has(k) ? titleCase(names.get(k)) : `${generic} (${translit(x.o.boardName || x.o.board)})`;
+    out.set(x.o, { board: x.g, boardKey: k, boardLabel: label, boardGroupLabel: generic });
+  }
+  return out;
+}
+
 // Груба група на стаята
 function roomGroup(...names) {
   const s = translit(names.filter(Boolean).join(' '));
@@ -131,4 +197,4 @@ function parseStars(cat) {
 }
 
 module.exports = {
-  parseStars, translit, cleanName, fingerprint, nameScore, normArea, boardGroup, BOARD_LABEL, roomGroup, seaView };
+  parseStars, translit, cleanName, fingerprint, nameScore, normArea, boardGroup, boardConcept, boardKeys, BOARD_LABEL, roomGroup, seaView };

@@ -30,6 +30,11 @@ test('разпознаване: Sejour (стая + тип) и Summer (едно �
   const brand = roomInfo('PLATINUM SELECT ROOM');
   assert.strictEqual(brand.known, false, 'непознати думи – отделна стая');
   assert.ok(brand.key.startsWith('raw|'));
+  // непозната стая: едно и също име в двете полета (Summer) = „DOUBLE ROOM“ + вида (Sejour)
+  assert.strictEqual(roomInfo('COLONEL SUITE', 'COLONEL SUITE').label, 'COLONEL SUITE');
+  assert.strictEqual(k('COLONEL SUITE', 'COLONEL SUITE'), k('DOUBLE ROOM', 'COLONEL SUITE'));
+  assert.strictEqual(roomInfo('DOUBLE ROOM', 'COLONEL SUITE').label, 'COLONEL SUITE');
+  assert.strictEqual(k('STANDARD ROOM', 'STANDARD ROOM'), k('STANDARD ROOM'));
 });
 
 function setup() {
@@ -152,4 +157,45 @@ test('изхранване: концепцията на хотела и съкр
   engine.suppliers.BBB.search = async () => ({ offers: [off('SPX', 'EXAI', 'EXAI', 2345)] });
   const o = (await engine.searchHotel('H1', P, { force: true })).hotels[0].options;
   assert.deepStrictEqual(o.map((x) => [x.room, x.boardLabel, x.price]), [['Супериорна стая', 'All Inclusive', 2270]], 'една стая, едно изхранване, по-евтината цена');
+});
+
+test('изхранване: хотел с две концепции в една група (TITANIC DELUXE) – два реда; иначе концепциите се сливат', async () => {
+  const { engine } = setup();
+  const off = (code, board, boardName, total) => ({ hotelCode: code, room: 'DOUBLE ROOM', roomType: 'STANDARD', roomCode: 'STD', roomTypeCode: 'STD', board, boardName, total, currency: 'EUR', status: 'OK' });
+  // AAA дава и двете концепции -> групата UAI се дели; BBB пише делукса по друг начин
+  engine.suppliers.AAA.search = async () => ({ offers: [off('SP1', 'UAI', 'ULTRA ALL INCLUSIVE', 2000), off('SP1', 'DAI', 'DELUXE ALL INCLUSIVE', 2600), off('SP1', 'HB', 'HALF BOARD', 1500)] });
+  engine.suppliers.BBB.search = async () => ({ offers: [off('SPX', '11', 'ULTRA ALL INCLUSIVE', 1950), off('SPX', '12', 'DELUXE ULTRA ALL INCLUSIVE', 2550)] });
+  let r = await engine.searchHotel('H1', P, { force: true });
+  let o = r.hotels[0].options;
+  assert.deepStrictEqual(o.map((x) => [x.boardLabel, x.board, x.boardGroupLabel, x.price]), [
+    ['Half Board', 'HB', 'Half Board', 1500],
+    ['Ultra All Inclusive', 'UAI', 'Ultra All Inclusive', 1950], // BBB по-евтин
+    ['Deluxe Ultra All Inclusive', 'UAI', 'Ultra All Inclusive', 2550], // отделен ред, BBB по-евтин
+  ]);
+  assert.notStrictEqual(o[1].boardKey, o[2].boardKey);
+  // проверката на цената и резервацията пазят името на концепцията
+  assert.strictEqual(engine.resolveOffer(o[2].offerKey).board.boardLabel, 'Deluxe Ultra All Inclusive');
+
+  // никой оператор не дава две концепции -> едно изхранване (EXCELLENCE = ALL INCLUSIVE)
+  engine.suppliers.AAA.search = async () => ({ offers: [off('SP1', 'EXI', 'EXCELLENCE INCLUSIVE', 2300)] });
+  engine.suppliers.BBB.search = async () => ({ offers: [off('SPX', 'AI', 'ALL INCLUSIVE', 2250)] });
+  r = await engine.searchHotel('H1', P, { force: true });
+  o = r.hotels[0].options;
+  assert.deepStrictEqual(o.map((x) => [x.boardLabel, x.boardKey, x.price]), [['All Inclusive', 'AI', 2250]]);
+});
+
+test('стаи: стар data/rooms.json – ключовете на непознатите стаи минават към новия вид', () => {
+  const dir = tmp();
+  const f = path.join(dir, 'rooms.json');
+  const sig = 'AAA|CS|CS|DOUBLE ROOM|COLONEL SUITE';
+  fs.writeFileSync(f, JSON.stringify({ hotels: { H1: {
+    obs: { [sig]: { op: 'AAA', room: 'DOUBLE ROOM', roomType: 'COLONEL SUITE', auto: { key: 'raw|DOUBLE ROOM COLONEL SUITE', label: 'DOUBLE ROOM COLONEL SUITE' }, first: '2026-11-28', seen: '2026-11-28' } },
+    map: { 'BBB|X|X|ECONOMY|ECONOMY': 'raw|DOUBLE ROOM COLONEL SUITE' },
+    names: { 'raw|DOUBLE ROOM COLONEL SUITE': 'Полковнически суит' },
+  } } }));
+  const rs = new RoomStore(f);
+  const hm = rs.data.hotels.H1;
+  assert.deepStrictEqual(hm.obs[sig].auto, { key: 'raw|COLONEL SUITE', label: 'COLONEL SUITE' });
+  assert.strictEqual(hm.map['BBB|X|X|ECONOMY|ECONOMY'], 'raw|COLONEL SUITE');
+  assert.strictEqual(rs.roomOf('H1', { op: 'BBB', room: 'COLONEL SUITE', roomType: 'COLONEL SUITE' }).label, 'Полковнически суит', 'името остава');
 });

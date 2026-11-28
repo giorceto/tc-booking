@@ -116,8 +116,28 @@ function roomInfo(room, roomType) {
   return r;
 }
 
+// Само брой легла/хора – не казва коя е стаята
+const OCCUPANCY = /\b(?:ROOMS?|ODA|DOUBLE|DBL|TWIN|SINGLE|SGL|TRIPLE|TRPL?|QUAD)\b/g;
+const clean = (x) => translit(x).replace(/[^A-Z0-9/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+// Името от двете полета: Summer често дава едно и също и в двете („COLONEL SUITE“ / „COLONEL SUITE“),
+// Sejour – „DOUBLE ROOM“ + вида („COLONEL SUITE“), където „DOUBLE ROOM“ е само брой легла
+function joinNames(room, roomType) {
+  const a = clean(room);
+  const b = clean(roomType);
+  if (!b || a.includes(b)) return a;
+  if (!a || b.includes(a)) return b;
+  if (!a.replace(OCCUPANCY, ' ').trim()) return b;
+  return `${a} ${b}`;
+}
+
+// Ключът на непозната стая – без думите за брой легла: „DOUBLE ROOM COLONEL SUITE“ = „COLONEL SUITE“
+function rawKey(s) {
+  return `raw|${clean(s).replace(OCCUPANCY, ' ').replace(/\s+/g, ' ').trim() || clean(s)}`;
+}
+
 function recognize(room, roomType) {
-  const s = translit([room, roomType].filter(Boolean).join(' ')).replace(/[^A-Z0-9/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const s = joinNames(room, roomType);
   const type = first(TYPES, s);
   let level = first(LEVELS, s);
   const view = first(VIEWS, s);
@@ -135,7 +155,7 @@ function recognize(room, roomType) {
     .replace(IGNORE, ' ')
     .split(/\s+/)
     .filter((w) => w.length >= 4);
-  if (rest.length) return { key: `raw|${s}`, label: s, type: 'room', level: null, view: null, features: [], known: false, rest };
+  if (rest.length) return { key: rawKey(s), label: s, type: 'room', level: null, view: null, features: [], known: false, rest };
   const key = [type, level, view || '-', ...features.sort()].join('|');
 
   // име на български
@@ -162,4 +182,4 @@ function recognize(room, roomType) {
   return { key, label, type, level, view: view || null, features, known: true };
 }
 
-module.exports = { roomInfo };
+module.exports = { roomInfo, rawKey };

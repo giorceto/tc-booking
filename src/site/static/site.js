@@ -550,7 +550,7 @@ function renderAll() {
 const BOARD_ORDER = ['UAI', 'AI', 'FB+', 'FB', 'HB+', 'HB', 'BB', 'RO'];
 function renderFilters() {
   const boards = new Map();
-  for (const x of S.results.values()) for (const o of x.options) if (!boards.has(o.board)) boards.set(o.board, o.boardLabel);
+  for (const x of S.results.values()) for (const o of x.options) if (!boards.has(o.board)) boards.set(o.board, o.boardGroupLabel || o.boardLabel);
   const box = $('filters');
   box.hidden = boards.size < 2 && !S.results.size;
   if (box.hidden) return;

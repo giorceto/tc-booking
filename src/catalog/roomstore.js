@@ -9,7 +9,7 @@
 // <sig> = оператор + кодове + имена на стаята при него; <key> = ключ от roomInfo() (характеристики).
 const fs = require('fs');
 const path = require('path');
-const { roomInfo } = require('./rooms');
+const { roomInfo, rawKey } = require('./rooms');
 
 const sigOf = (o) => [o.op, o.roomCode, o.roomTypeCode, o.room, o.roomType].map((x) => (x == null ? '' : String(x))).join('|');
 
@@ -20,6 +20,21 @@ class RoomStore {
     this.data = { hotels: {} };
     if (file && fs.existsSync(file)) this.data = { hotels: {}, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
     this.timer = null;
+    this.refreshKeys();
+  }
+
+  // Разпознаването се подобрява с времето – при старт автоматичните ключове се смятат наново,
+  // а ръчните връзки и имена към непознати стаи (raw|…) минават към новия вид на ключа
+  refreshKeys() {
+    const fix = (k) => (k && k.startsWith('raw|') ? rawKey(k.slice(4)) : k);
+    for (const hm of Object.values(this.data.hotels)) {
+      for (const ob of Object.values(hm.obs || {})) {
+        const a = roomInfo(ob.room, ob.roomType);
+        ob.auto = { key: a.key, label: a.label };
+      }
+      for (const sig of Object.keys(hm.map || {})) hm.map[sig] = fix(hm.map[sig]);
+      hm.names = Object.fromEntries(Object.entries(hm.names || {}).map(([k, v]) => [fix(k), v]));
+    }
   }
 
   hotel(id, create = false) {
