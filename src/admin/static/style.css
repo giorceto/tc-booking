@@ -106,6 +106,17 @@ textarea { resize: vertical; }
 .markup-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .markup-row input { width: 90px; font-size: 18px; font-weight: 700; }
 
+/* стаи */
+.rtable { table-layout: fixed; }
+.rtable th, .rtable td { vertical-align: top; padding: 8px; }
+.rtable tr { cursor: default; }
+.rtable tr.one { background: var(--pending-bg); }
+.rtable td:first-child { width: 240px; }
+.rc { display: grid; gap: 3px; margin-bottom: 8px; padding-left: 8px; border-left: 2px solid var(--line); }
+.rc.new { border-left-color: var(--pending); }
+.rc select { width: 100%; font-size: 12.5px; padding: 3px 6px; }
+.rname { font-size: 13px; overflow-wrap: anywhere; }
+
 /* промо кодове */
 .promo-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .promo-form input, .promo-form select { width: auto; }

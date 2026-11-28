@@ -13,6 +13,7 @@ const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
 const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
 const { Settings } = require('./settings');
+const { RoomStore } = require('./catalog/roomstore');
 const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
@@ -27,7 +28,9 @@ const chains = catalog.markChains();
 const suppliers = createSuppliers();
 // скрити курорти и надценка – от админа (data/settings.json), важат веднага
 const settings = new Settings(path.join(ROOT, 'data', 'settings.json'));
-const engine = new SearchEngine({ catalog, suppliers, markupPct: settings.markupPct, cacheMin: CACHE_MIN });
+// стаите: наблюдавани в търсенията + ръчните връзки от админа (data/rooms.json)
+const rooms = new RoomStore(path.join(ROOT, 'data', 'rooms.json'));
+const engine = new SearchEngine({ catalog, suppliers, markupPct: settings.markupPct, cacheMin: CACHE_MIN, rooms });
 settings.onChange = () => (engine.markupPct = settings.markupPct);
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
 const content = new ContentStore(path.join(ROOT, 'data', 'content.json')); // npm run import-site
@@ -63,7 +66,7 @@ const catalogJob = {
 scheduleDaily(CATALOG_TIME, () => catalogJob.run());
 
 const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
-const admin = createAdmin({ bookings, users, content, catalog, catalogJob, settings, opNames, siteUrl: SITE_URL, log });
+const admin = createAdmin({ bookings, users, content, catalog, catalogJob, settings, rooms, opNames, siteUrl: SITE_URL, log });
 
 const server = createServer({ engine, catalog, bookings, admin, content, settings, siteUrl: SITE_URL, heroImage: HERO_IMAGE, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
@@ -79,3 +82,14 @@ server.listen(PORT, HOST, () => {
   const n = users.list().length;
   log.info(`  админ: http://${HOST}:${PORT}/admin/ (${n ? `${n} потребител${n > 1 ? 'я' : ''}` : 'няма потребители – node src/auth.js add <име>'})`);
 });
+
+// при спиране (systemctl restart/stop) наблюдаваните стаи се записват, за да не се губят
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    try {
+      rooms.save();
+    } finally {
+      process.exit(0);
+    }
+  });
+}

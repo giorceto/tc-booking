@@ -30,7 +30,8 @@ test('най-добра цена по стая/изхранване, без да
   assert.strictEqual(h.options.length, 2);
   const std = h.options.find((o) => o.roomGroup === 'Стандартна');
   assert.strictEqual(std.price, 1210); // 1100 + 10%
-  assert.strictEqual(std.room, 'STANDARD ROOM B BLOCK');
+  assert.strictEqual(std.room, 'Стандартна стая', 'нашето име, не на оператора');
+  assert.ok(!JSON.stringify(r.hotels).includes('B BLOCK'), 'името при оператора не излиза навън');
   const fam = h.options.find((o) => o.roomGroup === 'Фамилна');
   assert.strictEqual(fam.available, true); // наличната 1400 бие "по запитване" 1500
   const json = JSON.stringify(r.hotels);

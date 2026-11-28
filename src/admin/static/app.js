@@ -100,7 +100,7 @@ function header() {
   } }, label);
   return h('header', { class: 'top' },
     h('strong', null, 'TC Booking'),
-    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('areas', 'Настройки')),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('rooms', 'Стаи'), nav('areas', 'Настройки')),
     h('span', { class: 'spacer' }),
     h('span', { class: 'muted' }, state.user),
     h('button', { class: 'link', onclick: logout }, 'Изход'));
@@ -111,6 +111,7 @@ function renderMain() {
   if (state.view === 'content') return renderContentView();
   if (state.view === 'catalog') return renderCatalogView();
   if (state.view === 'areas') return renderAreasView();
+  if (state.view === 'rooms') return renderRoomsView();
   $tabs = h('nav', { class: 'tabs', 'aria-label': 'Статус' });
   $search = h('input', { type: 'search', placeholder: 'Търсене: номер, име, имейл, хотел…', value: state.q, oninput: debounce(() => {
     state.q = $search.value;
@@ -250,7 +251,7 @@ function renderDetail() {
 
     h('div', { class: 'card' }, h('h3', null, 'Какво е видял клиентът'), dl([
       ['Хотел', `${p.hotelName}${p.stars ? ` ${p.stars}*` : ''} · ${p.area} (${p.hotelId})`],
-      ['Стая', `${p.room}${p.seaView ? ' · изглед към морето' : ''}`],
+      ['Стая', p.room],
       ['Изхранване', p.boardLabel],
       ['Настаняване', `${day(p.checkIn)}, ${p.nights} нощ.`],
       ['Гости', `${pax(p.adults, (p.childAges || []).length)}${(p.childAges || []).length ? ` (${p.childAges.join(', ')} г.)` : ''}`],
@@ -529,6 +530,94 @@ function movePicker(x, l, onPick) {
     find();
   });
   return h('div', { class: 'picker' }, input, results);
+}
+
+// ---------- стаи: една и съща стая при различните оператори ----------
+const rm = { state: 'todo', q: '', items: [], counts: {}, total: 0 };
+let $rtabs, $rlist;
+
+function renderRoomsView() {
+  $rtabs = h('nav', { class: 'tabs', 'aria-label': 'Стаи' });
+  const search = h('input', { type: 'search', placeholder: 'Хотел: име или H-номер…', value: rm.q, oninput: debounce(() => {
+    rm.q = search.value;
+    loadRooms();
+  }, 300) });
+  $rlist = h('section', { class: 'clist' });
+  $app.replaceChildren(header(),
+    h('div', { class: 'toolbar' }, $rtabs, search),
+    h('p', { class: 'muted small hint' },
+      'Стаите се разпознават по характеристики (вид, ниво, изглед) и еднаквите при различните оператори се показват на сайта като една стая с най-добрата цена. ',
+      'Тук са хотелите, при които операторите описват стаите различно. Ако две имена са една и съща стая – изберете „Същата като…“. Списъкът се пълни от търсенията на сайта.'),
+    $rlist);
+  loadRooms();
+}
+
+async function loadRooms() {
+  try {
+    const qs = new URLSearchParams({ state: rm.state });
+    if (rm.q.trim()) qs.set('q', rm.q.trim());
+    const r = await api(`api/rooms?${qs}`);
+    Object.assign(rm, { items: r.items, counts: r.counts, total: r.total });
+    renderRooms();
+  } catch (e) {
+    if (e.message !== '401') toast(e.message, 'bad');
+  }
+}
+
+function renderRooms() {
+  $rtabs.replaceChildren(...[['todo', 'За преглед'], ['done', 'Прегледани']].map(([s, label]) => h('button', {
+    class: `tab${rm.state === s && !rm.q ? ' active' : ''}${s === 'todo' && rm.counts.todo ? ' attention' : ''}`,
+    onclick: () => { rm.state = s; loadRooms(); },
+  }, label, h('span', { class: 'count' }, rm.counts[s] || 0))));
+  if (!rm.items.length) {
+    $rlist.replaceChildren(h('p', { class: 'muted empty' }, rm.q ? 'Няма данни за стаите на този хотел – още не е търсен на сайта.' : 'Няма хотели за преглед.'));
+    return;
+  }
+  $rlist.replaceChildren(...rm.items.map(roomCard), ...(rm.total > rm.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${rm.items.length} от ${rm.total}.`)] : []));
+}
+
+function roomCard(x) {
+  const act = async (action, body) => {
+    try {
+      const r = await api(`api/rooms/${x.hotelId}/${action}`, body);
+      const i = rm.items.findIndex((y) => y.hotelId === x.hotelId);
+      if (action === 'reviewed' && !rm.q) {
+        rm.items.splice(i, 1);
+        rm.counts.todo = Math.max(0, (rm.counts.todo || 1) - 1);
+        rm.counts.done = (rm.counts.done || 0) + 1;
+        toast('Отбелязан като прегледан');
+      } else rm.items[i] = r;
+      renderRooms();
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  };
+  const rowsByKey = x.rows.map((r) => [r.key, r.label]);
+  const cell = (r, op) => (r.cells[op] || []).map((c) => {
+    const type = c.roomType && c.roomType !== c.room ? c.roomType : ''; // при Summer името често е и в двете полета
+    const sel = h('select', { 'aria-label': `Стая „${c.room}${type ? ` / ${type}` : ''}“ – същата като`, onchange: () => act('map', { sig: c.sig, key: sel.value === '__auto' ? null : sel.value }) },
+      h('option', { value: '__auto' }, c.manual ? '↩ по разпознаването' : 'Същата като…'),
+      rowsByKey.filter(([k]) => k !== r.key).map(([k, l]) => h('option', { value: k }, l)));
+    return h('div', { class: `rc${c.isNew ? ' new' : ''}` },
+      h('span', { class: 'rname' }, c.room, type ? h('span', { class: 'muted' }, ` / ${type}`) : null),
+      c.manual ? h('span', { class: 'lstate l-ok' }, 'ръчно') : null,
+      sel);
+  });
+  return h('article', { class: 'kcard' },
+    h('div', { class: 'khead' },
+      x.thumb ? h('img', { class: 'cthumb', src: x.thumb, alt: '', loading: 'lazy' }) : h('div', { class: 'cthumb' }),
+      h('div', null, h('strong', null, x.name), h('div', { class: 'muted small' }, `${x.hotelId} · ${x.area} · ${x.ops.length} оператора · ${x.single} стаи само при един оператор${x.raw ? ` · ${x.raw} неразпознати` : ''}`)),
+      h('span', { class: 'spacer' }),
+      h('button', { onclick: () => act('reviewed', {}) }, 'Прегледано')),
+    h('table', { class: 'rtable' },
+      h('thead', null, h('tr', null, h('th', null, 'Наша стая (на сайта)'), x.ops.map((o) => h('th', null, o.name)))),
+      h('tbody', null, x.rows.map((r) => h('tr', { class: Object.keys(r.cells).length === 1 ? 'one' : '' },
+        h('td', null, h('strong', null, r.label), r.custom ? h('span', { class: 'muted small' }, ' (наше име)') : null,
+          h('div', null, h('button', { class: 'link small', onclick: () => {
+            const n = prompt('Име на стаята на сайта (празно – автоматичното):', r.custom ? r.label : '');
+            if (n !== null) act('name', { key: r.key, name: n });
+          } }, 'Преименувай'))),
+        x.ops.map((o) => h('td', null, cell(r, o.op))))))));
 }
 
 // ---------- курорти: кои се показват на сайта ----------

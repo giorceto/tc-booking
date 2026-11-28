@@ -285,7 +285,7 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     if (r.status === 'STOP') throw new HttpError(410, 'Няма свободни места за тази оферта. Моля, изберете друга.', { reason: 'stop' });
     const h = catalog.get(r.entry.hotelId);
     if (!h || hiddenArea(h.area)) throw new HttpError(410, 'Тази оферта вече не е налична. Моля, изберете друга.', { reason: 'gone' });
-    return { r, h, pub: engine.publicView(r.offer, r.entry.params) };
+    return { r, h, pub: engine.publicView(r.offer, r.entry.params, h.id) };
   }
 
   async function recheck({ match, query }) {

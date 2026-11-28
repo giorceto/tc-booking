@@ -172,7 +172,6 @@ button.link { background: none; border: 0; color: var(--sea-text); padding: 8px 
 .tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
 .board { color: var(--muted); }
 .tag { padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.tag.sea { background: var(--sea); color: var(--sea-text); }
 .tag.eb { background: var(--eb); color: var(--eb-text); }
 .tag.rq { background: var(--rq); color: var(--rq-text); }
 .price { font-weight: 700; font-size: 17px; color: var(--price); white-space: nowrap; }

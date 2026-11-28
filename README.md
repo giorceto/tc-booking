@@ -39,6 +39,8 @@ src/
   catalog/
     catalog.js           общ каталог: наш хотел ↔ код при всеки оператор
     normalize.js         имена, курорти, изхранване, стаи, звезди
+    rooms.js             стаята по характеристики (вид, ниво, изглед) -> ключ и наше име
+    roomstore.js         стаите при операторите и ръчните връзки (data/rooms.json, админ → Стаи)
   engine/
     search.js            търсене по хотел/курорт, най-добра цена, скрит доставчик, recheck()
   api/
@@ -94,6 +96,7 @@ node scripts/search.js area SIDE 2027-06-15 7 2 --internal   # --internal пок
 | [docs/sejour-api.md](docs/sejour-api.md) | Sejour REST v2 – вход, търсене, хотели, договори, EB |
 | [docs/sedna-api.md](docs/sedna-api.md) | Sedna (Summer Tour) – вход, търсене, договори, пакети/EB |
 | [docs/hotel-catalog.md](docs/hotel-catalog.md) | как връзваме един хотел при всички оператори |
+| [docs/rooms.md](docs/rooms.md) | една и съща стая при различните оператори, админ → Стаи |
 | [docs/pricing-rules.md](docs/pricing-rules.md) | какво е цената, EB, деца, наличност, избор на най-добра |
 | [docs/booking-architecture.md](docs/booking-architecture.md) | предложение за резервационната система |
 | [docs/api.md](docs/api.md) | Booking API за сайта – адреси, параметри, отговори, грешки |

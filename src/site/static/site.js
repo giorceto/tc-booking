@@ -582,7 +582,6 @@ function hotelCard(x) {
         h('span', null, o.room || o.roomGroup),
         h('span', { class: 'tags' },
           h('span', { class: 'board' }, o.boardLabel),
-          o.seaView ? h('span', { class: 'tag sea' }, 'изглед към морето') : null,
           o.eb ? h('span', { class: 'tag eb' }, `ранно записване −${o.eb}%`) : null,
           o.available ? null : h('span', { class: 'tag rq' }, 'по запитване'))),
       h('div', { class: 'price' }, priceNode(o.price, o.priceBefore, o.currency)),
@@ -662,15 +661,16 @@ window.addEventListener('popstate', () => {
   loadUrl();
 });
 
-// изхранванията на една стая – като избор с радио бутони, цената се сменя
+// Карта = една и съща стая (roomKey – по характеристики, не по името при оператора);
+// изхранванията ѝ – като избор с радио бутони, цената се сменя
 function roomGroups(options) {
   const m = new Map();
   for (const o of options) {
-    const k = o.room || o.roomGroup;
-    if (!m.has(k)) m.set(k, []);
-    m.get(k).push(o);
+    const k = o.roomKey || o.room;
+    if (!m.has(k)) m.set(k, { room: o.room, opts: [] });
+    m.get(k).opts.push(o);
   }
-  return [...m].map(([room, opts]) => ({ room, opts: opts.sort((a, b) => a.price - b.price) })).sort((a, b) => a.opts[0].price - b.opts[0].price);
+  return [...m.values()].map((g) => ({ ...g, opts: g.opts.sort((a, b) => a.price - b.price) })).sort((a, b) => a.opts[0].price - b.opts[0].price);
 }
 
 const firstSentence = (t) => {
@@ -773,20 +773,17 @@ function amenitiesBlock(info) {
 }
 
 function roomCard(x, g) {
-  const key = S.roomSel.get(g.room);
+  const key = S.roomSel.get(g.opts[0].roomKey || g.room);
   const sel = g.opts.find((o) => o.offerKey === key) || g.opts.find((o) => o.available) || g.opts[0];
   const base = g.opts[0].price;
-  const nm = `r-${g.room}`;
+  const nm = `r-${sel.roomKey || g.room}`;
   return h('article', { class: 'room-card' },
     h('h3', null, g.room),
-    h('ul', { class: 'facts' },
-      h('li', null, `${sel.roomGroup} стая`),
-      sel.seaView ? h('li', null, 'Изглед към морето') : null,
-      h('li', null, `За ${pax(S.params.adults, S.params.childAges.length)}`)),
+    h('ul', { class: 'facts' }, h('li', null, `За ${pax(S.params.adults, S.params.childAges.length)}`)),
     h('fieldset', { class: 'boards' },
       h('legend', null, 'Изхранване'),
       g.opts.map((o) => h('label', { class: o === sel ? 'on' : '' },
-        h('input', { type: 'radio', name: nm, checked: o === sel, onchange: () => { S.roomSel.set(g.room, o.offerKey); renderHotelPage(); } }),
+        h('input', { type: 'radio', name: nm, checked: o === sel, onchange: () => { S.roomSel.set(o.roomKey || g.room, o.offerKey); renderHotelPage(); } }),
         h('span', null, o.boardLabel, o.available ? null : h('small', { class: 'rq-text' }, ' · по запитване')),
         h('span', { class: 'diff' }, o === g.opts[0] ? money(o.price, o.currency) : `+${money(o.price - base, o.currency)}`)))),
     h('div', { class: 'tags' },
@@ -888,7 +885,7 @@ function openBooking(x, o) {
     h('div', { class: 'b-head' }, h('h2', { id: 'book-title' }, 'Заявка за резервация'), h('button', { class: 'close', 'aria-label': 'Затвори', onclick: () => dlg.close() }, '×')),
     h('div', { class: 'b-sum' },
       h('strong', null, x.name, x.stars ? ` ${'★'.repeat(x.stars)}` : ''), h('div', { class: 'muted' }, areaName(x.area)),
-      h('div', null, `${o.room || o.roomGroup} · ${o.boardLabel}${o.seaView ? ' · изглед към морето' : ''}`),
+      h('div', null, `${o.room || o.roomGroup} · ${o.boardLabel}`),
       h('div', null, `${day(p.date)} – ${day(addDays(p.date, p.nights))} · ${plural(p.nights, 'нощувка', 'нощувки')} · ${pax(p.adults, p.childAges.length)}${p.childAges.length ? ` (${p.childAges.join(', ')} г.)` : ''}`)),
     priceBox, notice, form);
   dlg.showModal();

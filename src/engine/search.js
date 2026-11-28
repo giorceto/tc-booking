@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { boardGroup, BOARD_LABEL, roomGroup, seaView, normArea, parseStars } = require('../catalog/normalize');
+const { roomInfo } = require('../catalog/rooms');
 
 const OFFER_TTL_MS = 30 * 60 * 1000; // колко време важи offerKey (после клиентът търси наново)
 
@@ -19,9 +20,11 @@ class SearchEngine {
    * @param {string} [o.dataDir]                       папка с hotels-OP.json (за търсене по курорт при Sedna)
    * @param {(op:string)=>boolean} [o.isActive]        изключване на доставчик без рестарт
    * @param {boolean} [o.useUnverified]                ползва и непроверените връзки от каталога (state 'check') – по подразбиране не
+   * @param {import('../catalog/roomstore').RoomStore} [o.rooms]  стаите: ръчни връзки от админа и наблюдавани стаи
    */
-  constructor({ catalog, suppliers, markupPct = 0, cacheMin = 15, dataDir, isActive = () => true, useUnverified = false }) {
+  constructor({ catalog, suppliers, markupPct = 0, cacheMin = 15, dataDir, isActive = () => true, useUnverified = false, rooms = null }) {
     this.useUnverified = useUnverified;
+    this.rooms = rooms;
     this.catalog = catalog;
     this.suppliers = suppliers;
     this.markupPct = markupPct;
@@ -42,6 +45,14 @@ class SearchEngine {
   // Грешна връзка = цена на друг хотел на сайта (виж docs/hotel-catalog.md).
   trusted(link) {
     return Boolean(link) && (this.useUnverified || link.state !== 'check');
+  }
+
+  // Стаята на офертата: еднакъв ключ за една и съща стая при различните оператори и наше име.
+  // Ръчната връзка от админа (Стаи) бие автоматичното разпознаване.
+  roomOf(hotelId, o) {
+    if (this.rooms) return this.rooms.roomOf(hotelId, o);
+    const r = roomInfo(o.room, o.roomType);
+    return { key: r.key, label: r.label };
   }
 
   activeOps() {
@@ -129,7 +140,9 @@ class SearchEngine {
         continue;
       }
       if (o.total == null || !(o.total > 0)) continue;
-      const key = [roomGroup(o.room, o.roomType), seaView(o.room, o.roomType, o.roomTypeCode) ? 'SV' : '', boardGroup(o.board, o.boardName)].join('|');
+      // една и съща стая (по характеристики, не по името при оператора) + изхранване
+      const key = `${this.roomOf(h.id, o).key}|${boardGroup(o.board, o.boardName)}`;
+      if (this.rooms) this.rooms.observe(h.id, o);
       if (!byHotel.has(h.id)) byHotel.set(h.id, { hotel: h, groups: new Map() });
       const g = byHotel.get(h.id).groups;
       const cur = g.get(key);
@@ -155,17 +168,19 @@ class SearchEngine {
 
   // Офертата, каквато я вижда клиентът; запомня offerKey -> вътрешни данни (за resolveOffer)
   publicOffer(h, o, params) {
-    const view = this.publicView(o, params);
+    const view = this.publicView(o, params, h.id);
     this.offers.set(view.offerKey, { at: Date.now(), op: o.op, hotelId: h.id, hotelCode: o.hotelCode, offer: o, params });
     return view;
   }
 
   // Само изгледът за клиента, без да се записва нищо
-  publicView(o, params) {
+  publicView(o, params, hotelId) {
     const bg = boardGroup(o.board, o.boardName);
+    const room = this.roomOf(hotelId, o);
     return {
       offerKey: this.offerKey(o, params),
-      room: cleanRoom(o.room || o.roomType),
+      room: room.label, // нашето име – името при оператора е характерно и издава кой е
+      roomKey: room.key,
       roomGroup: roomGroup(o.room, o.roomType),
       seaView: seaView(o.room, o.roomType, o.roomTypeCode),
       board: bg,
@@ -284,15 +299,6 @@ function better(a, b) {
   const av = a.status === 'OK', bv = b.status === 'OK';
   if (av !== bv) return av;
   return a.total < b.total;
-}
-
-// Махаме вътрешни кодове от името на стаята (напр. "B BLOCK", кодове в скоби), за да не се разпознава доставчикът
-function cleanRoom(s) {
-  return String(s || '')
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/\b[A-Z]{2,}\d+[A-Z0-9]*\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 module.exports = { SearchEngine };

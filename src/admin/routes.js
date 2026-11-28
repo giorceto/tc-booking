@@ -32,7 +32,7 @@ const pageHeaders = (siteUrl) => ({
 });
 
 // content/catalog – по желание: преглед на снимките от сайта и връзките им с каталога
-function createAdmin({ bookings, users, content, catalog, catalogJob, settings, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
+function createAdmin({ bookings, users, content, catalog, catalogJob, settings, rooms, opNames = {}, siteUrl = '', sessions = new Sessions(), guard = new LoginGuard(), log = console }) {
   const PAGE_HEADERS = pageHeaders(siteUrl);
   const files = Object.fromEntries(Object.entries(STATIC).map(([url, [f, type]]) => [url, { body: fs.readFileSync(path.join(STATIC_DIR, f)), type }]));
 
@@ -48,6 +48,8 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     ['POST', /^\/admin\/api\/content\/(\d+)\/(confirm|unlink|link)$/, contentAction],
     ['GET', /^\/admin\/api\/catalog$/, catalogSearch],
     ['GET', /^\/admin\/api\/catalog\/review$/, catalogReview],
+    ['GET', /^\/admin\/api\/rooms$/, roomsList],
+    ['POST', /^\/admin\/api\/rooms\/(H\d+)\/(map|name|reviewed)$/, roomsAction],
     ['GET', /^\/admin\/api\/areas$/, areaList],
     ['POST', /^\/admin\/api\/markup$/, markupSet],
     ['GET', /^\/admin\/api\/promos$/, promoList],
@@ -283,6 +285,55 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
         why: linkWhy(h, op, l),
       })),
     };
+  }
+
+  // ---------- стаи: една и съща стая при различните оператори ----------
+  function roomItem(id, t) {
+    const h = catalog && catalog.get(id);
+    const c = content && content.card(id);
+    return {
+      hotelId: id,
+      name: h ? h.name : id,
+      area: h ? h.area : '',
+      thumb: c ? c.image : null,
+      ops: t.ops.map((op) => ({ op, name: opNames[op] || op })),
+      rows: t.rows,
+      single: t.single,
+      raw: t.raw,
+      reviewedAt: t.reviewedAt,
+    };
+  }
+
+  function roomsList({ query }) {
+    if (!rooms) throw new HttpError(404, 'Няма данни за стаите');
+    const q = String(query.q || '').trim();
+    if (q.length >= 2) {
+      const ids = /^H\d+$/i.test(q) ? [q.toUpperCase()] : catalog ? catalog.search(q, 20).map((h) => h.id) : [];
+      const items = ids.map((id) => ({ id, t: rooms.table(id) })).filter((x) => x.t).map((x) => roomItem(x.id, x.t));
+      return { counts: { todo: rooms.review({ state: 'todo' }).length, done: rooms.review({ state: 'done' }).length }, total: items.length, items };
+    }
+    const state = query.state === 'done' ? 'done' : 'todo';
+    const list = rooms.review({ state });
+    return {
+      counts: { todo: state === 'todo' ? list.length : rooms.review({ state: 'todo' }).length, done: state === 'done' ? list.length : rooms.review({ state: 'done' }).length },
+      total: list.length,
+      items: list.slice(0, 60).map((x) => roomItem(x.hotelId, x)),
+    };
+  }
+
+  function roomsAction({ match, body, user }) {
+    if (!rooms) throw new HttpError(404, 'Няма данни за стаите');
+    const [, id, action] = match;
+    try {
+      if (action === 'map') rooms.setMap(id, String(body.sig || ''), body.key ? String(body.key) : null);
+      else if (action === 'name') rooms.setName(id, String(body.key || ''), body.name);
+      else rooms.setReviewed(id);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    log.info(`[admin] ${user}: стаи ${id} ${action}${body.key ? ` -> ${body.key}` : ''}${body.name ? ` „${body.name}“` : ''}`);
+    const t = rooms.table(id);
+    return t ? roomItem(id, t) : { hotelId: id };
   }
 
   // ---------- курорти: кои се показват на сайта ----------

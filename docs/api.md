@@ -57,13 +57,14 @@
   "hotels": [{
     "hotelId": "H1", "name": "…", "area": "SIDE", "stars": 5, "fromPrice": 1210, "currency": "EUR",
     "options": [{
-      "offerKey": "Zm9vYmFyYmF6cXV4", "room": "STANDARD ROOM", "roomGroup": "Стандартна", "seaView": false,
+      "offerKey": "Zm9vYmFyYmF6cXV4", "room": "Стандартна стая", "roomKey": "room|standard|-", "roomGroup": "Стандартна", "seaView": false,
       "board": "AI", "boardLabel": "All Inclusive", "price": 1210, "currency": "EUR",
       "available": true, "eb": 10, "checkIn": "2027-06-15", "nights": 7
     }]
   }]
 }
 ```
+- `room` е нашето име на стаята, не името при оператора. `roomKey` е ключът на стаята: една и съща стая при различните оператори има един ключ и излиза веднъж, с най-добрата цена (виж [rooms.md](rooms.md)). Сайтът групира изхранванията на една стая по `roomKey`.
 - `price` е продажната цена за целия престой в стаята. EB вече е включен, а `eb` е само за надпис („ранно записване −10%“).
 - `available: false` значи „по запитване“.
 - `incomplete: true` значи, че поне един доставчик не е отговорил и резултатите може да не са пълни.
