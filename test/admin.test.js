@@ -104,7 +104,7 @@ test('вход и изход', async (t) => {
   assert.match(sc, /HttpOnly/);
   assert.match(sc, /SameSite=Strict/);
   assert.ok(!/Secure/.test(sc), 'по http без Secure');
-  assert.deepStrictEqual((await s.api('/admin/api/me')).json, { user: 'ana' });
+  assert.deepStrictEqual((await s.api('/admin/api/me')).json, { user: 'ana', role: 'admin' }, 'стар потребител без права – администратор');
 
   await s.api('/admin/api/logout', { method: 'POST', body: {} });
   assert.strictEqual((await s.api('/admin/api/me')).status, 401, 'след изход сесията не важи');
@@ -217,6 +217,67 @@ test('паролата е поне 10 знака, името – латиниц�
   assert.strictEqual(u.add('ana', PASS + '2'), 'changed');
   assert.strictEqual(u.check('ana', PASS), null, 'старата парола не важи');
   assert.ok(!fs.readFileSync(u.file, 'utf8').includes(PASS), 'паролата не се пази');
+});
+
+test('потребители: администраторът добавя, сменя парола и права, трие; служителят – само своята парола', async (t) => {
+  const s = await setup();
+  t.after(s.close);
+  await s.login();
+  const post = (p, body) => s.api(p, { method: 'POST', body });
+  let r = await s.api('/admin/api/users');
+  assert.deepStrictEqual(r.json.users.map((u) => [u.name, u.role, u.me, u.sessions]), [['ana', 'admin', true, 1]]);
+  assert.ok(r.json.users[0].lastLoginAt, 'последен вход');
+  assert.ok(!r.text.includes('scrypt'), 'без хеша');
+
+  assert.strictEqual((await post('/admin/api/users', { name: 'Иван', password: 'дълга-парола-123', role: 'staff' })).status, 400, 'името – латиница');
+  assert.match((await post('/admin/api/users', { name: 'ivan', password: 'кратка', role: 'staff' })).json.error, /поне 10/);
+  assert.match((await post('/admin/api/users', { name: 'ivan', password: 'ivan-1234567', role: 'staff' })).json.error, /името/);
+  assert.match((await post('/admin/api/users', { name: 'ivan', password: 'дълга-парола-123', role: 'boss' })).json.error, /admin или staff/);
+  r = await post('/admin/api/users', { name: 'Ivan', password: 'дълга-парола-123', role: 'staff' });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.json.users.map((u) => [u.name, u.role]), [['ana', 'admin'], ['ivan', 'staff']]);
+  assert.strictEqual(r.json.users[1].createdBy, 'ana');
+  assert.match((await post('/admin/api/users', { name: 'ivan', password: 'дълга-парола-123' })).json.error, /Вече има/);
+
+  // защита: себе си не трие и не сваля; последният администратор остава
+  assert.match((await post('/admin/api/users/ana/delete', {})).json.error, /себе си/);
+  assert.match((await post('/admin/api/users/ana/role', { role: 'staff' })).json.error, /собствените/);
+  assert.strictEqual((await post('/admin/api/users/nobody/delete', {})).status, 404);
+
+  // служителят: няма достъп до Потребители, но си сменя паролата
+  const asAna = (await s.login()).headers.get('set-cookie').split(';')[0];
+  assert.strictEqual((await s.login('ivan', 'дълга-парола-123')).status, 200);
+  assert.deepStrictEqual((await s.api('/admin/api/me')).json, { user: 'ivan', role: 'staff' });
+  assert.strictEqual((await s.api('/admin/api/users')).status, 403);
+  assert.strictEqual((await post('/admin/api/users', { name: 'x2', password: 'дълга-парола-123', role: 'admin' })).status, 403, 'не си дава права');
+  assert.strictEqual((await post('/admin/api/users/ana/delete', {})).status, 403);
+  assert.strictEqual((await s.api('/admin/api/bookings')).status, 200, 'резервациите – да');
+  assert.match((await post('/admin/api/password', { current: 'грешна-парола', password: 'нова-парола-456' })).json.error, /Грешна сегашна/);
+  assert.strictEqual((await post('/admin/api/password', { current: 'дълга-парола-123', password: 'нова-парола-456' })).status, 200);
+  assert.strictEqual((await s.api('/admin/api/me')).status, 200, 'текущата сесия остава');
+  assert.strictEqual(s.users.check('ivan', 'нова-парола-456'), 'ivan');
+  const ivanCookie = (await s.login('ivan', 'нова-парола-456')).headers.get('set-cookie').split(';')[0];
+
+  // администраторът: нова парола на ivan -> ivan излиза; повишава го; трие го
+  s.setCookie(asAna);
+  assert.strictEqual((await post('/admin/api/users/ivan/password', { password: 'трета-парола-789' })).status, 200);
+  s.setCookie(ivanCookie);
+  assert.strictEqual((await s.api('/admin/api/me')).status, 401, 'след нова парола от администратора ivan влиза наново');
+  s.setCookie(asAna);
+  r = await post('/admin/api/users/ivan/role', { role: 'admin' });
+  assert.deepStrictEqual(r.json.users.map((u) => u.role), ['admin', 'admin']);
+  // вече има 2 администратора – ivan може да свали ana, но не и себе си
+  s.setCookie((await s.login('ivan', 'трета-парола-789')).headers.get('set-cookie').split(';')[0]);
+  assert.strictEqual((await post('/admin/api/users/ana/role', { role: 'staff' })).status, 200);
+  assert.match((await post('/admin/api/users/ivan/role', { role: 'staff' })).json.error, /собствените/);
+  s.setCookie(asAna);
+  assert.strictEqual((await s.api('/admin/api/users')).status, 403, 'ana вече е служител – правата важат веднага');
+  s.setCookie((await s.login('ivan', 'трета-парола-789')).headers.get('set-cookie').split(';')[0]);
+  r = await post('/admin/api/users/ana/delete', {});
+  assert.deepStrictEqual(r.json.users.map((u) => u.name), ['ivan']);
+  s.setCookie(asAna);
+  assert.strictEqual((await s.api('/admin/api/me')).status, 401, 'изтритият излиза веднага');
+  assert.ok(s.logs.some((l) => /ivan: изтрит потребител ana/.test(l)));
 });
 
 test('кирилица -> латиница като в паспортите', () => {

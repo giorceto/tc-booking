@@ -14,7 +14,7 @@ const { ContentStore } = require('./content/store');
 const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
 const { Settings } = require('./settings');
 const { RoomStore } = require('./catalog/roomstore');
-const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, CATALOG_TIME, operators } = require('./config');
+const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, LOGO_URL, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
 const catalogFile = path.join(ROOT, 'data', 'catalog.json');
@@ -68,7 +68,7 @@ scheduleDaily(CATALOG_TIME, () => catalogJob.run());
 const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
 const admin = createAdmin({ bookings, users, content, catalog, catalogJob, settings, rooms, opNames, siteUrl: SITE_URL, log });
 
-const server = createServer({ engine, catalog, bookings, admin, content, settings, siteUrl: SITE_URL, heroImage: HERO_IMAGE, corsOrigin: CORS_ORIGIN, log });
+const server = createServer({ engine, catalog, bookings, admin, content, settings, siteUrl: SITE_URL, heroImage: HERO_IMAGE, logoUrl: LOGO_URL, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела, ${catalog.review().length} връзки за проверка – не се ползват за цени)`);

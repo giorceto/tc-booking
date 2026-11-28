@@ -26,11 +26,12 @@ const SITE_FILES = [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js'
   .map(([url, f, type]) => [url, { text: fs.readFileSync(path.join(SITE_DIR, f), 'utf8'), type }]);
 const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-// Страницата с логото и голямата снимка от нашия сайт (ако е зададен) – попълва се веднъж при старт
-function sitePages(siteUrl, heroImage) {
+// Страницата с логото и голямата снимка от нашия сайт (ако е зададен) – попълва се веднъж при старт.
+// Логото води към logoUrl; по подразбиране './' – началото на търсачката (на сървъра busrent.eu/book/).
+function sitePages(siteUrl, heroImage, logoUrl = './') {
   const logo = siteUrl
-    ? `<a class="logo" href="${escAttr(siteUrl)}/"><img src="${escAttr(siteUrl)}/img/logo.png" alt="Tours Club" width="158" height="41"></a>`
-    : '<span class="brand">Tours Club</span>';
+    ? `<a class="logo" href="${escAttr(logoUrl)}"><img src="${escAttr(siteUrl)}/img/logo.png" alt="Tours Club" width="158" height="41"></a>`
+    : `<a class="logo brand" href="${escAttr(logoUrl)}">Tours Club</a>`;
   const hero = heroImage ? `<img class="hero-img" src="${escAttr(heroImage)}" alt="" fetchpriority="high">` : '';
   return Object.fromEntries(
     SITE_FILES.map(([url, f]) => [url, { type: f.type, body: Buffer.from(url === '/' ? f.text.replace('<!--LOGO-->', logo).replace('<!--HERO-->', hero) : f.text) }])
@@ -57,9 +58,9 @@ const LIMITS = {
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
 // content – снимки и описания от сайта (src/content/store.js); siteUrl – адресът на сайта (за CSP)
 // settings – скрити курорти (src/settings.js): не се показват и не се търсят при операторите
-function createApp({ engine, catalog, bookings, admin, content, settings, siteUrl = '', heroImage, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+function createApp({ engine, catalog, bookings, admin, content, settings, siteUrl = '', heroImage, logoUrl, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
   const SITE_HEADERS = siteHeaders(siteUrl);
-  const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage);
+  const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage, logoUrl || './');
   // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите
   const withContent = (h) => {
     const c = content && content.card(h.hotelId);

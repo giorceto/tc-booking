@@ -1,9 +1,11 @@
 // Вход за служителите (админ): потребители със scrypt хеш в data/users.json, сесии в паметта.
 //
-//   node src/auth.js add <име> [парола]     добавя потребител или сменя паролата (без парола – пита)
+//   node src/auth.js add <име> [парола]     добавя администратор или сменя паролата (без парола – пита)
 //   node src/auth.js remove <име>
 //   node src/auth.js list
 //
+// Права: admin – всичко, вкл. Потребители; staff – всичко без Потребители.
+// Стар запис без role е admin (създаден от командния ред).
 // data/users.json не се качва в git. Сесиите се губят при рестарт – служителите влизат пак.
 const crypto = require('crypto');
 const fs = require('fs');
@@ -33,6 +35,23 @@ function verifyPassword(password, stored) {
 // за непознато име – сравняваме с измислен хеш, за да отнеме същото време (не се разбира кои имена съществуват)
 const DUMMY = hashPassword(crypto.randomBytes(16).toString('hex'));
 
+const ROLES = { admin: 'Администратор', staff: 'Служител' };
+const NAME_RE = /^[a-z0-9._-]{2,32}$/;
+
+const cleanName = (name) => String(name || '').trim().toLowerCase();
+function checkName(name) {
+  if (!NAME_RE.test(name)) throw new Error('Името: 2–32 знака, латински букви, цифри, . _ -');
+}
+function checkPassword(password, name) {
+  const p = String(password || '');
+  if (p.length < 10) throw new Error('Паролата трябва да е поне 10 знака');
+  if (p.length > 200) throw new Error('Паролата е твърде дълга');
+  if (name && name.length >= 4 && p.toLowerCase().includes(name)) throw new Error('Паролата не може да съдържа името');
+}
+function checkRole(role) {
+  if (!ROLES[role]) throw new Error('Правата са admin или staff');
+}
+
 class Users {
   constructor(file) {
     this.file = file;
@@ -49,15 +68,55 @@ class Users {
     fs.renameSync(this.file + '.tmp', this.file);
   }
 
-  add(name, password) {
-    name = String(name || '').trim().toLowerCase();
-    if (!/^[a-z0-9._-]{2,32}$/.test(name)) throw new Error('Името: 2–32 знака, латински букви, цифри, . _ -');
-    if (String(password || '').length < 10) throw new Error('Паролата трябва да е поне 10 знака');
+  // Команден ред: нов потребител (администратор) или нова парола на съществуващ
+  add(name, password, role = 'admin') {
+    name = cleanName(name);
+    checkName(name);
     const users = this.load();
-    const existed = Boolean(users[name]);
-    users[name] = { hash: hashPassword(password), createdAt: (users[name] && users[name].createdAt) || new Date().toISOString(), changedAt: new Date().toISOString() };
+    if (!users[name]) {
+      this.create(name, password, role);
+      return 'added';
+    }
+    this.setPassword(name, password);
+    return 'changed';
+  }
+
+  create(name, password, role = 'staff', by = null) {
+    name = cleanName(name);
+    checkName(name);
+    checkPassword(password, name);
+    checkRole(role);
+    const users = this.load();
+    if (users[name]) throw new Error('Вече има потребител с това име');
+    const now = new Date().toISOString();
+    users[name] = { hash: hashPassword(password), role, createdAt: now, changedAt: now, ...(by ? { createdBy: by } : {}) };
     this.save(users);
-    return existed ? 'changed' : 'added';
+    return this.get(name);
+  }
+
+  setPassword(name, password) {
+    const users = this.load();
+    if (!users[name]) throw new Error('Няма такъв потребител');
+    checkPassword(password, name);
+    users[name].hash = hashPassword(password);
+    users[name].changedAt = new Date().toISOString();
+    this.save(users);
+  }
+
+  setRole(name, role) {
+    checkRole(role);
+    const users = this.load();
+    if (!users[name]) throw new Error('Няма такъв потребител');
+    users[name].role = role;
+    this.save(users);
+  }
+
+  // кога е влизал за последно
+  touch(name) {
+    const users = this.load();
+    if (!users[name]) return;
+    users[name].lastLoginAt = new Date().toISOString();
+    this.save(users);
   }
 
   remove(name) {
@@ -69,6 +128,21 @@ class Users {
 
   list() {
     return Object.keys(this.load()).sort();
+  }
+
+  // { name, role, createdAt, changedAt, lastLoginAt } – без хеша
+  get(name) {
+    const u = this.load()[name];
+    if (!u) return null;
+    return { name, role: ROLES[u.role] ? u.role : 'admin', createdAt: u.createdAt || null, changedAt: u.changedAt || null, lastLoginAt: u.lastLoginAt || null, createdBy: u.createdBy || null };
+  }
+
+  details() {
+    return this.list().map((n) => this.get(n));
+  }
+
+  admins() {
+    return this.details().filter((u) => u.role === 'admin').map((u) => u.name);
   }
 
   // Връща името при вярна парола, иначе null
@@ -109,9 +183,16 @@ class Sessions {
     this.map.delete(token);
   }
 
-  // изход на всички сесии на потребител (напр. след смяна на паролата)
-  destroyUser(user) {
-    for (const [t, s] of this.map) if (s.user === user) this.map.delete(t);
+  // изход на всички сесии на потребител (напр. след смяна на паролата); keep – текущата сесия остава
+  destroyUser(user, keep = null) {
+    for (const [t, s] of this.map) if (s.user === user && t !== keep) this.map.delete(t);
+  }
+
+  // колко отворени сесии има потребителят
+  count(user) {
+    let n = 0;
+    for (const t of [...this.map.keys()]) if (this.get(t) && this.map.get(t).user === user) n++;
+    return n;
   }
 
   cleanup() {
@@ -148,7 +229,7 @@ class LoginGuard {
   }
 }
 
-module.exports = { Users, Sessions, LoginGuard, hashPassword, verifyPassword };
+module.exports = { Users, Sessions, LoginGuard, ROLES, hashPassword, verifyPassword };
 
 // ---------- команден ред ----------
 if (require.main === module) {
@@ -190,7 +271,7 @@ if (require.main === module) {
       users.remove(name.toLowerCase());
       console.log(`Изтрит: ${name.toLowerCase()} (излиза от админа веднага)`);
     } else if (cmd === 'list') {
-      console.log(users.list().join('\n') || '(няма потребители)');
+      console.log(users.details().map((u) => `${u.name}\t${ROLES[u.role]}`).join('\n') || '(няма потребители)');
     } else {
       console.log('Употреба:\n  node src/auth.js add <име> [парола]\n  node src/auth.js remove <име>\n  node src/auth.js list');
       process.exit(1);

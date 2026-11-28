@@ -6,7 +6,7 @@ const STATUS = { pending: 'За потвърждение', confirmed: 'Потв�
 const TABS = [['pending', 'За потвърждение'], ['confirmed', 'Потвърдени'], ['rejected', 'Отказани'], ['cancelled', 'Анулирани'], ['', 'Всички']];
 const REFRESH_MS = 60000;
 
-const state = { view: 'bookings', user: null, status: 'pending', q: '', list: [], counts: {}, total: 0, selected: null, detail: null, timer: null };
+const state = { view: 'bookings', user: null, role: null, status: 'pending', q: '', list: [], counts: {}, total: 0, selected: null, detail: null, timer: null };
 const $app = document.getElementById('app');
 
 // ---------- помощни ----------
@@ -70,6 +70,7 @@ function renderLogin(message) {
     try {
       const r = await api('api/login', { user: user.value, password: pass.value });
       state.user = r.user;
+      state.role = r.role;
       renderMain();
     } catch (x) {
       err.textContent = x.message;
@@ -100,9 +101,13 @@ function header() {
   } }, label);
   return h('header', { class: 'top' },
     h('strong', null, 'TC Booking'),
-    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('rooms', 'Стаи'), nav('areas', 'Настройки')),
+    h('nav', { class: 'views' }, nav('bookings', 'Резервации'), nav('catalog', 'Каталог'), nav('content', 'Снимки от сайта'), nav('rooms', 'Стаи'), nav('areas', 'Настройки'),
+      state.role === 'admin' ? nav('users', 'Потребители') : null),
     h('span', { class: 'spacer' }),
-    h('span', { class: 'muted' }, state.user),
+    h('button', { class: `link me${state.view === 'me' ? ' on' : ''}`, title: 'Смяна на паролата', onclick: () => {
+      state.view = 'me';
+      renderMain();
+    } }, state.user),
     h('button', { class: 'link', onclick: logout }, 'Изход'));
 }
 
@@ -112,6 +117,8 @@ function renderMain() {
   if (state.view === 'catalog') return renderCatalogView();
   if (state.view === 'areas') return renderAreasView();
   if (state.view === 'rooms') return renderRoomsView();
+  if (state.view === 'users') return renderUsersView();
+  if (state.view === 'me') return renderMeView();
   $tabs = h('nav', { class: 'tabs', 'aria-label': 'Статус' });
   $search = h('input', { type: 'search', placeholder: 'Търсене: номер, име, имейл, хотел…', value: state.q, oninput: debounce(() => {
     state.q = $search.value;
@@ -678,6 +685,116 @@ async function renderAreasView() {
   }
 }
 
+// ---------- потребители (само администратор) ----------
+const ROLE_LABEL = { admin: 'Администратор', staff: 'Служител' };
+
+// случайна парола без букви, които се бъркат (l/1, O/0): xxxx-xxxx-xxxx
+function genPassword() {
+  const abc = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const r = crypto.getRandomValues(new Uint32Array(12));
+  const s = [...r].map((x) => abc[x % abc.length]).join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
+}
+
+async function renderUsersView() {
+  const list = h('section', { class: 'markup-box' }, h('p', { class: 'muted' }, 'Зареждане…'));
+  const name = h('input', { placeholder: 'име, напр. maria', maxlength: '32', autocomplete: 'off', 'aria-label': 'Потребителско име', class: 'u-name' });
+  const pass = h('input', { placeholder: 'парола (поне 10 знака)', maxlength: '200', autocomplete: 'new-password', 'aria-label': 'Парола', class: 'u-pass mono' });
+  const role = h('select', { 'aria-label': 'Права' }, h('option', { value: 'staff' }, ROLE_LABEL.staff), h('option', { value: 'admin' }, ROLE_LABEL.admin));
+  const add = h('form', { class: 'promo-form', onsubmit: async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api('api/users', { name: name.value, password: pass.value, role: role.value });
+      toast(`Добавен: ${name.value.trim().toLowerCase()}. Предайте паролата лично.`);
+      name.value = '';
+      pass.value = '';
+      drawUsers(list, r);
+    } catch (x) {
+      if (x.message !== '401') toast(x.message, 'bad');
+    }
+  } }, name, pass, h('button', { type: 'button', class: 'small-btn', onclick: () => (pass.value = genPassword()) }, 'Генерирай'), role, h('button', { class: 'primary', type: 'submit' }, 'Добави'));
+  $app.replaceChildren(header(),
+    h('section', { class: 'markup-box' },
+      h('h2', { class: 'set-title' }, 'Нов потребител'),
+      add,
+      h('p', { class: 'muted small' }, 'Името е с латински букви, с него служителят влиза. Паролата не се пази в четим вид и после не може да се види – запишете я или я предайте лично. Служителят може да си я смени от името си горе вдясно.')),
+    list,
+    h('p', { class: 'muted small hint top-hint' }, '„Служител“ вижда и прави всичко без тази страница. „Администратор“ може и да управлява потребителите. Трябва да остане поне един администратор.'));
+  try {
+    drawUsers(list, await api('api/users'));
+  } catch (e) {
+    if (e.message === '401') return;
+    toast(e.message, 'bad');
+    state.view = 'bookings'; // напр. правата са сменени междувременно
+    renderMain();
+  }
+}
+
+function drawUsers(box, r) {
+  const act = async (u, action, body = {}, done) => {
+    try {
+      drawUsers(box, await api(`api/users/${encodeURIComponent(u.name)}/${action}`, body));
+      if (done) toast(done);
+    } catch (e) {
+      if (e.message !== '401') toast(e.message, 'bad');
+    }
+  };
+  const rows = r.users.map((u) => h('tr', null,
+    h('td', null, h('strong', null, u.name), u.me ? h('span', { class: 'muted small' }, ' (вие)') : null),
+    h('td', null, u.me ? ROLE_LABEL[u.role] : h('select', { 'aria-label': `Права на ${u.name}`, onchange: (e) => act(u, 'role', { role: e.target.value }, 'Правата са сменени') },
+      Object.entries(ROLE_LABEL).map(([v, l]) => h('option', { value: v, selected: v === u.role }, l)))),
+    h('td', null, u.lastLoginAt ? when(u.lastLoginAt) : h('span', { class: 'muted' }, 'не е влизал'), u.sessions ? h('div', { class: 'muted small' }, `в момента: ${u.sessions} ${u.sessions === 1 ? 'сесия' : 'сесии'}`) : null),
+    h('td', { class: 'muted small' }, u.createdAt ? `създаден ${when(u.createdAt)}${u.createdBy ? ` от ${u.createdBy}` : ''}` : ''),
+    h('td', { class: 'num' },
+      h('button', { class: 'small-btn', onclick: () => {
+        const p = prompt(`Нова парола за ${u.name} (поне 10 знака). Запишете я – после не се вижда.${u.me ? '' : ' Ще излезе от админа на всички устройства.'}`, genPassword());
+        if (p !== null) act(u, 'password', { password: p }, `Паролата на ${u.name} е сменена`);
+      } }, 'Нова парола'), ' ',
+      u.me ? null : h('button', { class: 'small-btn danger', onclick: () => confirm(`Да изтрия ли потребителя ${u.name}? Излиза от админа веднага.`) && act(u, 'delete', {}, `Изтрит: ${u.name}`) }, 'Изтрий'))));
+  box.replaceChildren(
+    h('h2', { class: 'set-title' }, 'Потребители'),
+    h('table', { class: 'promo-table' },
+      h('thead', null, h('tr', null, h('th', null, 'Име'), h('th', null, 'Права'), h('th', null, 'Последен вход'), h('th', null, ''), h('th', null, ''))),
+      h('tbody', null, rows)));
+}
+
+// ---------- моята парола (всеки служител) ----------
+function renderMeView() {
+  const cur = h('input', { type: 'password', autocomplete: 'current-password', required: true });
+  const p1 = h('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: '10' });
+  const p2 = h('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: '10' });
+  const err = h('p', { class: 'error', 'aria-live': 'polite' });
+  const btn = h('button', { type: 'submit', class: 'primary' }, 'Смени паролата');
+  $app.replaceChildren(header(),
+    h('form', { class: 'login pw', onsubmit: async (e) => {
+      e.preventDefault();
+      err.textContent = '';
+      if (p1.value !== p2.value) {
+        err.textContent = 'Новите пароли не съвпадат';
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await api('api/password', { current: cur.value, password: p1.value });
+        toast('Паролата е сменена. Другите ви устройства излизат от админа.');
+        state.view = 'bookings';
+        renderMain();
+      } catch (x) {
+        if (x.message !== '401') err.textContent = x.message;
+      } finally {
+        btn.disabled = false;
+      }
+    } },
+    h('h1', null, 'Моята парола'),
+    h('p', { class: 'muted' }, `Потребител: ${state.user} · ${ROLE_LABEL[state.role] || ''}`),
+    h('label', null, 'Сегашна парола', cur),
+    h('label', null, 'Нова парола (поне 10 знака)', p1),
+    h('label', null, 'Новата още веднъж', p2),
+    btn,
+    err));
+  cur.focus();
+}
+
 // ---------- промо кодове ----------
 async function renderPromos(box) {
   let r;
@@ -724,6 +841,8 @@ async function logout() {
   stopRefresh();
   await api('api/logout', {}).catch(() => {});
   state.user = null;
+  state.role = null;
+  state.view = 'bookings';
   renderLogin();
 }
 
@@ -748,7 +867,9 @@ function debounce(fn, ms) {
   try {
     const r = await fetch('api/me', { credentials: 'same-origin' });
     if (r.ok) {
-      state.user = (await r.json()).user;
+      const me = await r.json();
+      state.user = me.user;
+      state.role = me.role;
       renderMain();
     } else renderLogin();
   } catch {

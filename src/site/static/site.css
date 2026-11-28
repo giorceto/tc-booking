@@ -41,7 +41,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .top { background: var(--panel); }
 .topbar { display: flex; align-items: center; gap: 14px; height: 64px; }
 .logo img { display: block; height: 41px; width: auto; }
-.brand { font-weight: 800; font-size: 20px; color: #c6262e; }
+.brand { font-weight: 800; font-size: 20px; color: #c6262e; text-decoration: none; }
 .tag { position: relative; color: var(--muted); font-size: 14px; padding-left: 15px; }
 .tag::before { content: ''; position: absolute; left: 0; top: 50%; height: 20px; margin-top: -10px; width: 1px; background: var(--line); }
 

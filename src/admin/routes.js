@@ -8,12 +8,16 @@
 //   GET  /admin/api/bookings/:id
 //   POST /admin/api/bookings/:id/status  { status, supplierRef?, comment? }
 //   POST /admin/api/bookings/:id/comment { comment }
+//   GET  /admin/api/users                     потребители (само администратор)
+//   POST /admin/api/users { name, password, role }        нов потребител (само администратор)
+//   POST /admin/api/users/:name/password|role|delete     (само администратор)
+//   POST /admin/api/password { current, password }       собствената парола (всеки)
 //
 // Страницата ползва само относителни адреси – работи и зад Caddy с handle_path (напр. /booking/admin/).
 const fs = require('fs');
 const path = require('path');
 const { HttpError, sendJson, readJson, clientIp, isHttps, parseCookies } = require('../api/http');
-const { Sessions, LoginGuard } = require('../auth');
+const { Sessions, LoginGuard, ROLES } = require('../auth');
 const { NEXT, STATUSES } = require('../bookings/store');
 const { toLatin } = require('./translit');
 const { parsePromo, promoLabel, promoValid } = require('../promo');
@@ -39,7 +43,11 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
   const routes = [
     ['POST', /^\/admin\/api\/login$/, login, { public: true }],
     ['POST', /^\/admin\/api\/logout$/, logout, { public: true }],
-    ['GET', /^\/admin\/api\/me$/, ({ user }) => ({ user })],
+    ['GET', /^\/admin\/api\/me$/, ({ user, role }) => ({ user, role })],
+    ['POST', /^\/admin\/api\/password$/, ownPassword],
+    ['GET', /^\/admin\/api\/users$/, userList, { admin: true }],
+    ['POST', /^\/admin\/api\/users$/, userAdd, { admin: true }],
+    ['POST', /^\/admin\/api\/users\/([a-z0-9._-]{2,32})\/(password|role|delete)$/, userAction, { admin: true }],
     ['GET', /^\/admin\/api\/bookings$/, list],
     ['GET', /^\/admin\/api\/bookings\/(TCB-\d+)$/, detail],
     ['POST', /^\/admin\/api\/bookings\/(TCB-\d+)\/status$/, setStatus],
@@ -85,11 +93,14 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
         }
         const token = parseCookies(req)[COOKIE];
         const s = sessions.get(token);
-        // потребител, изтрит от data/users.json, излиза веднага
-        const user = s && users.list().includes(s.user) ? s.user : null;
+        // потребител, изтрит от data/users.json, излиза веднага; правата се четат при всяка заявка
+        const me = s ? users.get(s.user) : null;
+        const user = me ? me.name : null;
+        const role = me ? me.role : null;
         if (!user && !opt.public) throw new HttpError(401, 'Влезте отново');
+        if (opt.admin && role !== 'admin') throw new HttpError(403, 'Само за администратор');
         const body = method === 'POST' ? await readJson(req) : undefined;
-        const out = await fn({ req, res, url, query: Object.fromEntries(url.searchParams), match: m, body, user, token });
+        const out = await fn({ req, res, url, query: Object.fromEntries(url.searchParams), match: m, body, user, role, token });
         sendJson(res, 200, out);
         return;
       }
@@ -124,14 +135,77 @@ function createAdmin({ bookings, users, content, catalog, catalogJob, settings, 
     const cookie = [`${COOKIE}=${token}`, 'HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=604800'];
     if (isHttps(req)) cookie.push('Secure');
     res.setHeader('Set-Cookie', cookie.join('; '));
+    users.touch(user);
     log.info(`[admin] вход: ${user} от ${ip}`);
-    return { user };
+    return { user, role: users.get(user).role };
   }
 
   function logout({ res, token, user }) {
     sessions.destroy(token);
     res.setHeader('Set-Cookie', `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
     if (user) log.info(`[admin] изход: ${user}`);
+    return { ok: true };
+  }
+
+  // ---------- потребители ----------
+  const asBad = (fn) => {
+    try {
+      return fn();
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+  };
+
+  function userList({ user }) {
+    return { users: users.details().map((u) => ({ ...u, sessions: sessions.count(u.name), me: u.name === user })), roles: ROLES };
+  }
+
+  function userAdd({ body, user }) {
+    const b = body || {};
+    const u = asBad(() => users.create(b.name, b.password, b.role || 'staff', user));
+    log.info(`[admin] ${user}: нов потребител ${u.name} (${u.role})`);
+    return userList({ user });
+  }
+
+  function userAction({ match, body, user, token }) {
+    const [, name, action] = match;
+    const target = users.get(name);
+    if (!target) throw new HttpError(404, 'Няма такъв потребител');
+    const lastAdmin = target.role === 'admin' && users.admins().length === 1;
+    const b = body || {};
+    if (action === 'password') {
+      asBad(() => users.setPassword(name, b.password));
+      sessions.destroyUser(name, name === user ? token : null); // излиза навсякъде със старата парола
+      log.info(`[admin] ${user}: нова парола на ${name}`);
+    } else if (action === 'role') {
+      if (name === user) throw new HttpError(400, 'Не можете да смените собствените си права');
+      if (lastAdmin && b.role !== 'admin') throw new HttpError(400, 'Трябва да остане поне един администратор');
+      asBad(() => users.setRole(name, b.role));
+      log.info(`[admin] ${user}: права на ${name} -> ${b.role}`);
+    } else if (action === 'delete') {
+      if (name === user) throw new HttpError(400, 'Не можете да изтриете себе си');
+      if (lastAdmin) throw new HttpError(400, 'Трябва да остане поне един администратор');
+      users.remove(name);
+      sessions.destroyUser(name);
+      log.info(`[admin] ${user}: изтрит потребител ${name}`);
+    }
+    return userList({ user });
+  }
+
+  // собствената парола – със сегашната; грешните опити се броят като при входа
+  function ownPassword({ req, body, user, token }) {
+    const b = body || {};
+    const keys = [`ip:${clientIp(req)}`, `user:${user}`];
+    if (guard.blocked(...keys)) throw new HttpError(429, 'Много грешни опити. Опитайте пак след 15 минути.');
+    if (!users.check(user, b.current)) {
+      guard.fail(...keys);
+      log.warn(`[admin] ${user}: грешна сегашна парола при смяна`);
+      throw new HttpError(400, 'Грешна сегашна парола');
+    }
+    if (String(b.password || '') === String(b.current || '')) throw new HttpError(400, 'Новата парола е същата като старата');
+    asBad(() => users.setPassword(user, b.password));
+    sessions.destroyUser(user, token); // другите сесии излизат, тази остава
+    log.info(`[admin] ${user}: смени паролата си`);
     return { ok: true };
   }
 
