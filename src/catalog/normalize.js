@@ -91,6 +91,9 @@ function boardGroup(code, name) {
   if (/HALF BOARD|\bHB\b/.test(s)) return 'HB';
   if (/BED.*BREAKFAST|BREAKFAST|\bBB\b/.test(s)) return 'BB';
   if (/ROOM ONLY|ONLY ROOM|ONLY BED|\bRO\b|\bOB\b|\bSC\b|SELF CATER/.test(s)) return 'RO';
+  // концепциите на хотелите с тяхно име: EXCELLENCE INCLUSIVE, съкратено EXAI; LAI, SAI, AI+…
+  // (след HB/FB/BB, за да остане „HALF BOARD INCLUSIVE DRINKS“ полупансион)
+  if (/INCLUSIVE|\bINCL\b|\b[A-Z]{1,4}AI\b|\bAI[+P]/.test(s)) return 'AI';
   return translit(code) || '?';
 }
 

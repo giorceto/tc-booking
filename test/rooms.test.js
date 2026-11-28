@@ -131,3 +131,25 @@ test('админ: Стаи – списък за преглед, „същата
   assert.strictEqual(j.items.length, 1, 'търсене по H-номер');
   assert.strictEqual((await fetch(base + '/admin/api/rooms')).status, 401);
 });
+
+test('изхранване: концепцията на хотела и съкращението ѝ са едно и също (EXCELLENCE INCLUSIVE = EXAI)', async () => {
+  const { boardGroup } = require('../src/catalog/normalize');
+  const g = (code, name) => boardGroup(code, name);
+  assert.strictEqual(g('EXI', 'EXCELLENCE INCLUSIVE'), 'AI');
+  assert.strictEqual(g('EXAI', 'EXAI'), 'AI');
+  assert.strictEqual(g('73', 'EXCELLENCE ALL INCLUSIVE'), 'AI');
+  assert.strictEqual(g('LAI', ''), 'AI');
+  assert.strictEqual(g('AI+', 'ALL INCLUSIVE PLUS'), 'AI');
+  assert.strictEqual(g('UAI', 'ULTRA ALL INCLUSIVE'), 'UAI', 'ултра остава ултра');
+  assert.strictEqual(g('ULAI', ''), 'UAI');
+  assert.strictEqual(g('HB', 'HALF BOARD INCLUSIVE DRINKS'), 'HB', 'полупансион с напитки не е all inclusive');
+  assert.strictEqual(g('BB', 'BED AND BREAKFAST'), 'BB');
+  assert.strictEqual(g('', 'UNBOUND LUXURY EXPERIENCE'), '?', 'непознатото остава отделно');
+
+  const { engine } = setup();
+  const off = (code, board, boardName, total) => ({ hotelCode: code, room: 'DOUBLE ROOM', roomType: 'SUPERIOR', roomCode: 'SUP', roomTypeCode: 'SUP', board, boardName, total, currency: 'EUR', status: 'OK' });
+  engine.suppliers.AAA.search = async () => ({ offers: [off('SP1', 'EXI', 'EXCELLENCE INCLUSIVE', 2270)] });
+  engine.suppliers.BBB.search = async () => ({ offers: [off('SPX', 'EXAI', 'EXAI', 2345)] });
+  const o = (await engine.searchHotel('H1', P, { force: true })).hotels[0].options;
+  assert.deepStrictEqual(o.map((x) => [x.room, x.boardLabel, x.price]), [['Супериорна стая', 'All Inclusive', 2270]], 'една стая, едно изхранване, по-евтината цена');
+});
