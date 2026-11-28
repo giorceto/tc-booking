@@ -11,10 +11,11 @@ const { createServer } = require('./api/app');
 const { createAdmin } = require('./admin/routes');
 const { Users } = require('./auth');
 const { ContentStore } = require('./content/store');
+const { Geo } = require('./catalog/geo');
 const { refreshCatalog, scheduleDaily } = require('./catalog/refresh');
 const { Settings } = require('./settings');
 const { RoomStore } = require('./catalog/roomstore');
-const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, LOGO_URL, CATALOG_TIME, operators } = require('./config');
+const { ROOT, PORT, HOST, CORS_ORIGIN, CACHE_MIN, SITE_URL, HERO_IMAGE, LOGO_URL, MAP_TILES, MAP_ATTRIBUTION, CATALOG_TIME, operators } = require('./config');
 
 // Каталогът се пази в data/catalog.json (там се записват и решенията от админа) – никога в data/seed (в git)
 const catalogFile = path.join(ROOT, 'data', 'catalog.json');
@@ -34,6 +35,8 @@ const engine = new SearchEngine({ catalog, suppliers, markupPct: settings.markup
 settings.onChange = () => (engine.markupPct = settings.markupPct);
 const bookings = new BookingStore(path.join(ROOT, 'data', 'bookings.json'));
 const content = new ContentStore(path.join(ROOT, 'data', 'content.json')); // npm run import-site
+// координатите на хотелите за картата: от нашия сайт, иначе от списъка хотели при оператор (Summer)
+const geo = new Geo({ catalog, content, hotelsOf: (op) => engine.supplierHotels(op), trusted: (l) => engine.trusted(l) });
 
 const stamp = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Sofia' });
 const log = {
@@ -68,7 +71,7 @@ scheduleDaily(CATALOG_TIME, () => catalogJob.run());
 const opNames = Object.fromEntries(operators.map((o) => [o.id, o.name]));
 const admin = createAdmin({ bookings, users, content, catalog, catalogJob, settings, rooms, opNames, siteUrl: SITE_URL, log });
 
-const server = createServer({ engine, catalog, bookings, admin, content, settings, siteUrl: SITE_URL, heroImage: HERO_IMAGE, logoUrl: LOGO_URL, corsOrigin: CORS_ORIGIN, log });
+const server = createServer({ engine, catalog, bookings, admin, content, settings, geo, mapTiles: MAP_TILES, mapAttribution: MAP_ATTRIBUTION, siteUrl: SITE_URL, heroImage: HERO_IMAGE, logoUrl: LOGO_URL, corsOrigin: CORS_ORIGIN, log });
 server.listen(PORT, HOST, () => {
   log.info(`TC Booking API: http://${HOST}:${PORT}/api/health`);
   log.info(`  каталог: ${path.relative(ROOT, catalogFile)} (${catalog.data.hotels.length} хотела, ${catalog.review().length} връзки за проверка – не се ползват за цени)`);

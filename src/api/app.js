@@ -22,24 +22,33 @@ const { promoPrice, promoLabel } = require('../promo');
 
 // Страницата за търсене и резервация: / (busrent.eu/book/), само относителни адреси
 const SITE_DIR = path.join(__dirname, '..', 'site', 'static');
-const SITE_FILES = [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
+const SITE_FILES = [['/', 'index.html', 'text/html; charset=utf-8'], ['/site.js', 'site.js', 'text/javascript; charset=utf-8'], ['/map.js', 'map.js', 'text/javascript; charset=utf-8'], ['/site.css', 'site.css', 'text/css; charset=utf-8']]
   .map(([url, f, type]) => [url, { text: fs.readFileSync(path.join(SITE_DIR, f), 'utf8'), type }]);
 const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 // Страницата с логото и голямата снимка от нашия сайт (ако е зададен) – попълва се веднъж при старт.
 // Логото води към logoUrl; по подразбиране './' – началото на търсачката (на сървъра busrent.eu/book/).
-function sitePages(siteUrl, heroImage, logoUrl = './') {
+function sitePages(siteUrl, heroImage, logoUrl = './', map = {}) {
   const logo = siteUrl
     ? `<a class="logo" href="${escAttr(logoUrl)}"><img src="${escAttr(siteUrl)}/img/logo.png" alt="Tours Club" width="158" height="41"></a>`
     : `<a class="logo brand" href="${escAttr(logoUrl)}">Tours Club</a>`;
   const hero = heroImage ? `<img class="hero-img" src="${escAttr(heroImage)}" alt="" fetchpriority="high">` : '';
+  // картата: адрес на плочките и надпис за авторските права (празно – без карта)
+  const mapMeta = map.tiles ? `<meta name="map-tiles" content="${escAttr(map.tiles)}"><meta name="map-attribution" content="${escAttr(map.attribution || '')}">` : '';
   return Object.fromEntries(
-    SITE_FILES.map(([url, f]) => [url, { type: f.type, body: Buffer.from(url === '/' ? f.text.replace('<!--LOGO-->', logo).replace('<!--HERO-->', hero) : f.text) }])
+    SITE_FILES.map(([url, f]) => [url, { type: f.type, body: Buffer.from(url === '/' ? f.text.replace('<!--LOGO-->', logo).replace('<!--HERO-->', hero).replace('<!--MAP-->', mapMeta) : f.text) }])
   );
 }
-// снимките идват направо от нашия сайт (siteUrl) – само оттам
-const siteHeaders = (siteUrl) => ({
-  'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:${siteUrl ? ` ${new URL(siteUrl).origin}` : ''}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+// снимките идват направо от нашия сайт (siteUrl) – само оттам; плочките на картата – от mapTiles
+const originOf = (u) => {
+  try {
+    return u ? new URL(u.replace(/\{[a-z]\}/g, 'a')).origin : '';
+  } catch {
+    return '';
+  }
+};
+const siteHeaders = (siteUrl, mapTiles = '') => ({
+  'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:${[siteUrl, mapTiles].map(originOf).filter(Boolean).map((o) => ` ${o}`).join('')}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 });
 
@@ -58,13 +67,14 @@ const LIMITS = {
 // admin – handler за /admin/... (src/admin/routes.js); без него админът не е включен
 // content – снимки и описания от сайта (src/content/store.js); siteUrl – адресът на сайта (за CSP)
 // settings – скрити курорти (src/settings.js): не се показват и не се търсят при операторите
-function createApp({ engine, catalog, bookings, admin, content, settings, siteUrl = '', heroImage, logoUrl, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
-  const SITE_HEADERS = siteHeaders(siteUrl);
-  const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage, logoUrl || './');
-  // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите
+function createApp({ engine, catalog, bookings, admin, content, settings, geo = null, mapTiles = '', mapAttribution = '', siteUrl = '', heroImage, logoUrl, corsOrigin = '', log = console, streamThrottleMs = 300, heartbeatMs = 15000, limits = {} }) {
+  const SITE_HEADERS = siteHeaders(siteUrl, mapTiles);
+  const SITE = sitePages(siteUrl, heroImage === undefined ? (siteUrl ? `${siteUrl}/img/SNIMKI/home_header_171255752436.jpg` : '') : heroImage, logoUrl || './', { tiles: mapTiles, attribution: mapAttribution });
+  // снимка, оценка и адрес на страницата на хотела в сайта – към всеки хотел в резултатите; lat/lon – за картата
   const withContent = (h) => {
     const c = content && content.card(h.hotelId);
-    return c ? { ...h, ...c } : h;
+    const g = geo && geo.get(h.hotelId);
+    return c || g ? { ...h, ...(c || {}), ...(g || {}) } : h;
   };
   const allowed = new Set(String(corsOrigin).split(',').map((s) => s.trim()).filter(Boolean));
   const limiters = Object.fromEntries(Object.entries({ ...LIMITS, ...limits }).map(([k, [max, ms]]) => [k, new RateLimit(max, ms)]));
@@ -181,7 +191,8 @@ function createApp({ engine, catalog, bookings, admin, content, settings, siteUr
     const h = catalog.get(match[1]);
     if (!h || hiddenArea(h.area)) throw new HttpError(404, 'Няма такъв хотел');
     const c = content && content.full(h.id);
-    return { ...publicHotel(h), photos: [], sections: [], ...(c || {}) };
+    const g = geo && geo.get(h.id);
+    return { ...publicHotel(h), photos: [], sections: [], ...(c || {}), lat: g ? g.lat : null, lon: g ? g.lon : null };
   }
 
   function hotels({ query }) {

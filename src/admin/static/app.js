@@ -8,6 +8,8 @@ const REFRESH_MS = 60000;
 
 const state = { view: 'bookings', user: null, role: null, status: 'pending', q: '', list: [], counts: {}, total: 0, selected: null, detail: null, timer: null };
 const $app = document.getElementById('app');
+// replaceChildren(null) пише „null“ в страницата – празните се махат
+const fill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
 
 // ---------- помощни ----------
 function h(tag, attrs, ...kids) {
@@ -86,7 +88,7 @@ function renderLogin(message) {
   h('label', null, 'Парола', pass),
   btn,
   err);
-  $app.replaceChildren(form);
+  fill($app, form);
   user.focus();
 }
 
@@ -126,7 +128,7 @@ function renderMain() {
   }, 300) });
   $list = h('section', { class: 'list' });
   $detail = h('section', { class: 'detail' }, h('p', { class: 'muted empty' }, 'Изберете резервация от списъка.'));
-  $app.replaceChildren(
+  fill($app, 
     header(),
     h('div', { class: 'toolbar' }, $tabs, $search),
     h('main', { class: 'grid' }, $list, $detail));
@@ -136,7 +138,7 @@ function renderMain() {
 
 function renderTabs() {
   const all = Object.values(state.counts).reduce((a, b) => a + b, 0);
-  $tabs.replaceChildren(...TABS.map(([s, label]) => {
+  fill($tabs, ...TABS.map(([s, label]) => {
     const n = s ? state.counts[s] || 0 : all;
     return h('button', { class: `tab${state.status === s ? ' active' : ''}${s === 'pending' && n ? ' attention' : ''}`, 'aria-pressed': String(state.status === s), onclick: () => {
       state.status = s;
@@ -164,7 +166,7 @@ async function loadList() {
 
 function renderList() {
   if (!state.list.length) {
-    $list.replaceChildren(h('p', { class: 'muted empty' }, state.q ? 'Няма резервации, които да отговарят на търсенето.' : 'Няма резервации тук.'));
+    fill($list, h('p', { class: 'muted empty' }, state.q ? 'Няма резервации, които да отговарят на търсенето.' : 'Няма резервации тук.'));
     return;
   }
   const rows = state.list.map((b) => h('tr', { class: b.id === state.selected ? 'sel' : '', tabindex: '0', onclick: () => select(b.id), onkeydown: (e) => e.key === 'Enter' && select(b.id) },
@@ -177,7 +179,7 @@ function renderList() {
     h('td', null, b.opName, b.supplierRef ? h('div', { class: 'muted small mono nowrap' }, b.supplierRef) : null),
     h('td', null, badge(b.status), b.onRequest ? h('div', { class: 'flag' }, 'по запитване') : null)));
   const more = state.total > state.list.length ? [h('p', { class: 'muted small more' }, `Показани са първите ${state.list.length} от ${state.total}.`)] : [];
-  $list.replaceChildren(
+  fill($list, 
     h('table', null,
       h('thead', null, h('tr', null, ...['Номер', 'Хотел', 'Настаняване', 'Гост', 'Цена / нетна / печалба', 'Доставчик', 'Статус'].map((t, i) => h('th', { class: i === 4 ? 'num' : '' }, t)))),
       h('tbody', null, rows)),
@@ -235,7 +237,7 @@ function renderDetail() {
     pending: h('button', { onclick: () => act('pending') }, 'Върни за потвърждение'),
   };
 
-  $detail.replaceChildren(
+  fill($detail, 
     h('div', { class: 'd-head' }, h('h2', { class: 'mono' }, b.id), badge(b.status), p.onRequest ? h('span', { class: 'flag' }, 'по запитване') : null),
     h('p', { class: 'muted small' }, `Получена ${when(b.createdAt)}`),
 
@@ -308,7 +310,7 @@ function renderContentView() {
     loadContent();
   }, 300) });
   $clist = h('section', { class: 'clist' });
-  $app.replaceChildren(header(),
+  fill($app, header(),
     h('div', { class: 'toolbar' }, $ctabs, search),
     h('p', { class: 'muted small hint' }, 'Снимките и описанията идват от нашия сайт (npm run import-site, всяка нощ). Показват се на клиентите само при вързаните хотели. „За проверка“ са несигурни съвпадения – потвърдете или разкачете.'),
     $clist);
@@ -339,17 +341,17 @@ async function contentAction(siteId, action, body = {}) {
 }
 
 function renderContent() {
-  $ctabs.replaceChildren(...CTABS.map(([s, label]) => h('button', { class: `tab${cs.state === s ? ' active' : ''}${s === 'check' && cs.counts.check ? ' attention' : ''}`, 'aria-pressed': String(cs.state === s), onclick: () => {
+  fill($ctabs, ...CTABS.map(([s, label]) => h('button', { class: `tab${cs.state === s ? ' active' : ''}${s === 'check' && cs.counts.check ? ' attention' : ''}`, 'aria-pressed': String(cs.state === s), onclick: () => {
     cs.state = s;
     cs.picker = null;
     loadContent();
   } }, label, h('span', { class: 'count' }, cs.counts[s] || 0))));
   if (!cs.items.length) {
-    $clist.replaceChildren(h('p', { class: 'muted empty' }, cs.updatedAt ? 'Няма нищо тук.' : 'Още няма внос от сайта – на сървъра: npm run import-site'));
+    fill($clist, h('p', { class: 'muted empty' }, cs.updatedAt ? 'Няма нищо тук.' : 'Още няма внос от сайта – на сървъра: npm run import-site'));
     return;
   }
   const stars = (n) => (n ? ` ${'★'.repeat(n)}` : '');
-  $clist.replaceChildren(...cs.items.map((it) => {
+  fill($clist, ...cs.items.map((it) => {
     const s = it.site;
     const l = it.link;
     const hot = l && l.hotel;
@@ -383,7 +385,7 @@ function picker(s) {
   async function find() {
     try {
       const r = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
-      results.replaceChildren(...(r.hotels.length ? r.hotels.map((x) => h('button', { class: 'pick', onclick: () => contentAction(s.siteId, 'link', { hotelId: x.id }) },
+      fill(results, ...(r.hotels.length ? r.hotels.map((x) => h('button', { class: 'pick', onclick: () => contentAction(s.siteId, 'link', { hotelId: x.id }) },
         h('strong', null, x.name), ` ${x.stars ? '★'.repeat(x.stars) : ''} · ${x.area} · ${x.id} · ${x.ops.length} опер.`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел в каталога.')]));
     } catch (e) {
       if (e.message !== '401') toast(e.message, 'bad');
@@ -443,7 +445,7 @@ function renderCatalogView() {
     loadCatalog();
   }, 300) });
   $klist = h('section', { class: 'clist' });
-  $app.replaceChildren(header(),
+  fill($app, header(),
     h('div', { class: 'toolbar' }, $kcount, search, h('span', { class: 'spacer' }), $krefresh),
     h('p', { class: 'muted small hint' },
       'Връзките „за проверка“ НЕ се ползват за цени, докато не ги потвърдите. Ако операторът продава друг хотел – „Премести към…“ (ако хотелът вече е в каталога) или „Отдели в нов хотел“. ',
@@ -466,10 +468,10 @@ async function loadCatalog() {
 function renderCatalog() {
   $kcount.textContent = `За проверка: ${kat.counts.hotels || 0} хотела, ${kat.counts.links || 0} връзки`;
   if (!kat.items.length) {
-    $klist.replaceChildren(h('p', { class: 'muted empty' }, kat.q ? 'Няма такъв хотел в каталога.' : 'Няма връзки за проверка. 👍'));
+    fill($klist, h('p', { class: 'muted empty' }, kat.q ? 'Няма такъв хотел в каталога.' : 'Няма връзки за проверка. 👍'));
     return;
   }
-  $klist.replaceChildren(...kat.items.map(catalogCard), ...(kat.total > kat.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${kat.items.length} от ${kat.total}.`)] : []));
+  fill($klist, ...kat.items.map(catalogCard), ...(kat.total > kat.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${kat.items.length} от ${kat.total}.`)] : []));
 }
 
 function catalogCard(x) {
@@ -526,7 +528,7 @@ function movePicker(x, l, onPick) {
     try {
       const r = await api(`api/catalog?q=${encodeURIComponent(input.value)}`);
       const list = r.hotels.filter((y) => y.id !== x.id);
-      results.replaceChildren(...(list.length ? list.map((y) => h('button', { class: 'pick', onclick: () => onPick(y.id) },
+      fill(results, ...(list.length ? list.map((y) => h('button', { class: 'pick', onclick: () => onPick(y.id) },
         h('strong', null, y.name), ` ${y.stars ? '★'.repeat(y.stars) : ''} · ${y.area} · ${y.id} · ${y.ops.join(', ')}`)) : [h('span', { class: 'muted small' }, 'Няма такъв хотел.')]));
     } catch (e) {
       if (e.message !== '401') toast(e.message, 'bad');
@@ -550,7 +552,7 @@ function renderRoomsView() {
     loadRooms();
   }, 300) });
   $rlist = h('section', { class: 'clist' });
-  $app.replaceChildren(header(),
+  fill($app, header(),
     h('div', { class: 'toolbar' }, $rtabs, search),
     h('p', { class: 'muted small hint' },
       'Стаите се разпознават по характеристики (вид, ниво, изглед) и еднаквите при различните оператори се показват на сайта като една стая с най-добрата цена. ',
@@ -572,15 +574,15 @@ async function loadRooms() {
 }
 
 function renderRooms() {
-  $rtabs.replaceChildren(...[['todo', 'За преглед'], ['done', 'Прегледани']].map(([s, label]) => h('button', {
+  fill($rtabs, ...[['todo', 'За преглед'], ['done', 'Прегледани']].map(([s, label]) => h('button', {
     class: `tab${rm.state === s && !rm.q ? ' active' : ''}${s === 'todo' && rm.counts.todo ? ' attention' : ''}`,
     onclick: () => { rm.state = s; loadRooms(); },
   }, label, h('span', { class: 'count' }, rm.counts[s] || 0))));
   if (!rm.items.length) {
-    $rlist.replaceChildren(h('p', { class: 'muted empty' }, rm.q ? 'Няма данни за стаите на този хотел – още не е търсен на сайта.' : 'Няма хотели за преглед.'));
+    fill($rlist, h('p', { class: 'muted empty' }, rm.q ? 'Няма данни за стаите на този хотел – още не е търсен на сайта.' : 'Няма хотели за преглед.'));
     return;
   }
-  $rlist.replaceChildren(...rm.items.map(roomCard), ...(rm.total > rm.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${rm.items.length} от ${rm.total}.`)] : []));
+  fill($rlist, ...rm.items.map(roomCard), ...(rm.total > rm.items.length ? [h('p', { class: 'muted small' }, `Показани са първите ${rm.items.length} от ${rm.total}.`)] : []));
 }
 
 function roomCard(x) {
@@ -634,7 +636,7 @@ async function renderAreasView() {
   const list = h('section', { class: 'clist' }, h('p', { class: 'muted empty' }, 'Зареждане…'));
   const markup = h('section', { class: 'markup-box' });
   const promoBox = h('section', { class: 'markup-box' });
-  $app.replaceChildren(header(),
+  fill($app, header(),
     markup,
     promoBox,
     h('h2', { class: 'set-title' }, 'Курорти'),
@@ -649,7 +651,7 @@ async function renderAreasView() {
     };
     const exEl = h('span', { class: 'muted small' }, ex());
     inp.addEventListener('input', () => (exEl.textContent = ex()));
-    markup.replaceChildren(
+    fill(markup, 
       h('h2', { class: 'set-title' }, 'Надценка'),
       h('div', { class: 'markup-row' },
         h('label', null, inp, ' % върху нетната цена на оператора'),
@@ -666,7 +668,7 @@ async function renderAreasView() {
         exEl),
       h('p', { class: 'muted small' }, 'Важи за всички хотели и оператори. Цената на сайта се закръгля нагоре до цяло евро. Вече направените резервации не се променят.'));
     renderPromos(promoBox);
-    list.replaceChildren(h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
+    fill(list, h('div', { class: 'areas-grid' }, r.areas.map((a) => h('label', { class: `area-row${a.hidden ? ' off' : ''}` },
       h('input', { type: 'checkbox', checked: !a.hidden, onchange: async (e) => {
         const show = e.target.checked;
         try {
@@ -713,7 +715,7 @@ async function renderUsersView() {
       if (x.message !== '401') toast(x.message, 'bad');
     }
   } }, name, pass, h('button', { type: 'button', class: 'small-btn', onclick: () => (pass.value = genPassword()) }, 'Генерирай'), role, h('button', { class: 'primary', type: 'submit' }, 'Добави'));
-  $app.replaceChildren(header(),
+  fill($app, header(),
     h('section', { class: 'markup-box' },
       h('h2', { class: 'set-title' }, 'Нов потребител'),
       add,
@@ -751,7 +753,7 @@ function drawUsers(box, r) {
         if (p !== null) act(u, 'password', { password: p }, `Паролата на ${u.name} е сменена`);
       } }, 'Нова парола'), ' ',
       u.me ? null : h('button', { class: 'small-btn danger', onclick: () => confirm(`Да изтрия ли потребителя ${u.name}? Излиза от админа веднага.`) && act(u, 'delete', {}, `Изтрит: ${u.name}`) }, 'Изтрий'))));
-  box.replaceChildren(
+  fill(box, 
     h('h2', { class: 'set-title' }, 'Потребители'),
     h('table', { class: 'promo-table' },
       h('thead', null, h('tr', null, h('th', null, 'Име'), h('th', null, 'Права'), h('th', null, 'Последен вход'), h('th', null, ''), h('th', null, ''))),
@@ -765,7 +767,7 @@ function renderMeView() {
   const p2 = h('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: '10' });
   const err = h('p', { class: 'error', 'aria-live': 'polite' });
   const btn = h('button', { type: 'submit', class: 'primary' }, 'Смени паролата');
-  $app.replaceChildren(header(),
+  fill($app, header(),
     h('form', { class: 'login pw', onsubmit: async (e) => {
       e.preventDefault();
       err.textContent = '';
@@ -826,7 +828,7 @@ async function renderPromos(box) {
     h('td', { class: 'num' },
       h('button', { class: 'small-btn', onclick: () => act(`api/promos/${encodeURIComponent(p.code)}/${p.active === false ? 'on' : 'off'}`) }, p.active === false ? 'Пусни' : 'Спри'), ' ',
       h('button', { class: 'small-btn danger', onclick: () => confirm(`Да изтрия ли ${p.code}?`) && act(`api/promos/${encodeURIComponent(p.code)}/delete`) }, 'Изтрий'))));
-  box.replaceChildren(
+  fill(box, 
     h('h2', { class: 'set-title' }, 'Промо кодове'),
     h('form', { class: 'promo-form', onsubmit: (e) => {
       e.preventDefault();

@@ -4,6 +4,8 @@
 
 // ---------- помощни ----------
 const $ = (id) => document.getElementById(id);
+// replaceChildren(null) пише „null“ в страницата – празните се махат
+const fill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -84,8 +86,9 @@ const S = {
   ctrl: null,
   shown: 20,
   expanded: new Set(),
-  board: '',
-  onlyAvailable: false,
+  f: null, // филтрите вляво (newFilters)
+  sort: 'price',
+  dragging: false, // мести се плъзгачът на цената
   view: 'list', // 'list' – резултати по курорт; 'hotel' – страницата на един хотел
   hotelId: null,
   prev: null, // запазеният списък, от който е отворен хотелът (за „← Всички хотели“ и Назад)
@@ -252,7 +255,7 @@ function renderCal() {
   }
   const n = S.checkIn && S.checkOut ? nightsOf(S.checkIn, S.checkOut) : 0;
   const hint = !S.checkIn ? 'Изберете дата на настаняване' : !S.checkOut ? 'Изберете дата на напускане' : `${day(S.checkIn)} – ${day(S.checkOut)} · ${plural(n, 'нощувка', 'нощувки')}`;
-  $('cal').replaceChildren(
+  fill($('cal'), 
     h('div', { class: 'cal-head' },
       h('button', { type: 'button', class: 'nav', 'aria-label': 'Предишен месец', onclick: () => shiftMonth(-1) }, '‹'),
       h('button', { type: 'button', class: 'nav', 'aria-label': 'Следващ месец', onclick: () => shiftMonth(1) }, '›')),
@@ -313,7 +316,7 @@ function renderPax() {
       h('button', { type: 'button', 'aria-label': `${label}: по-малко`, disabled: value <= min, onclick: () => { set(value - 1); renderPax(); renderPaxText(); } }, '−'),
       h('span', { 'aria-live': 'polite' }, value),
       h('button', { type: 'button', 'aria-label': `${label}: повече`, disabled: value >= max, onclick: () => { set(value + 1); renderPax(); renderPaxText(); } }, '+')));
-  $('pax').replaceChildren(
+  fill($('pax'), 
     stepper('Възрастни', '', S.adults, 1, 6, (v) => (S.adults = v)),
     stepper('Деца', 'до 17 години', S.childAges.length, 0, 3, (v) => (S.childAges = v > S.childAges.length ? [...S.childAges, ''] : S.childAges.slice(0, v))),
     S.childAges.length ? h('div', { class: 'ages' }, S.childAges.map((a, i) => {
@@ -388,7 +391,7 @@ function showSuggest() {
   const list = $('suggest');
   if (!sugg.length || document.activeElement !== $('where')) return hideSuggest();
   if (active >= sugg.length) active = -1;
-  list.replaceChildren(...sugg.map((s, i) => h('li', {
+  fill(list, ...sugg.map((s, i) => h('li', {
     id: `sg-${i}`, role: 'option', class: i === active ? 'on' : '', 'aria-selected': String(i === active),
     onmousedown: (e) => {
       e.preventDefault();
@@ -420,7 +423,8 @@ function pick(s) {
 async function search(params) {
   if (S.ctrl) S.ctrl.abort();
   const ctrl = (S.ctrl = new AbortController());
-  Object.assign(S, { params, done: false, incomplete: false, error: '', shown: 20, board: '', onlyAvailable: false });
+  Object.assign(S, { params, done: false, incomplete: false, error: '', shown: 20, f: newFilters(), sort: 'price', amenMore: false });
+  closeSide();
   $('popular').hidden = true;
   S.results = new Map(); // нов – запазеният списък (S.prev) остава непокътнат
   S.expanded.clear();
@@ -492,7 +496,7 @@ function onEvent(block) {
 function fail(msg) {
   S.done = true;
   S.error = msg;
-  $('status').replaceChildren(h('p', { class: 'error' }, msg));
+  fill($('status'), h('p', { class: 'error' }, msg));
   if (S.view === 'hotel') renderHotelPage();
 }
 
@@ -506,21 +510,70 @@ function scheduleRender() {
   }, 150);
 }
 
-// ---------- резултати ----------
-function visibleHotels() {
+// ---------- резултати: филтри вляво, подредба, карта ----------
+const newFilters = () => ({ q: '', min: null, max: null, stars: new Set(), rating: 0, boards: new Set(), amen: new Set(), onlyAvailable: false });
+const copyFilters = (f) => ({ ...f, stars: new Set(f.stars), boards: new Set(f.boards), amen: new Set(f.amen) });
+// същите като в src/content/amenities.js (тестът го проверява)
+const AMEN_LABEL = {
+  beach: 'Собствен плаж', sea: 'На брега на морето', sand: 'Пясъчен плаж', pool: 'Открит басейн', indoor: 'Закрит басейн',
+  slides: 'Водни пързалки', spa: 'СПА център', steam: 'Хамам и сауна', fitness: 'Фитнес', kids: 'Детски клуб',
+  animation: 'Анимация', alacarte: 'Ресторанти а ла карт', wifi: 'Wi-Fi', tennis: 'Тенис корт', watersports: 'Водни спортове',
+  golf: 'Голф', disco: 'Дискотека', adults: 'Само за възрастни', accessible: 'Стаи за хора с увреждания', parking: 'Паркинг',
+};
+const RATINGS = [[0, 'Всички'], [4.5, '4,5+ Отлична'], [4, '4+ Много добра'], [3.5, '3,5+ Добра']];
+const SORTS = [['price', 'Цена: от ниска към висока'], ['price-desc', 'Цена: от висока към ниска'], ['rating', 'Оценка на гостите'], ['stars', 'Звезди']];
+const BOARD_ORDER = ['UAI', 'AI', 'FB+', 'FB', 'HB+', 'HB', 'BB', 'RO'];
+const PRICE_STEP = 50;
+const hasGeo = (x) => x && x.lat != null && x.lon != null;
+const bestOf = (x) => x.options.find((o) => o.available) || x.options[0];
+
+// Хотелите след филтрите; skip – филтърът, който не се прилага (за броя до неговите опции)
+function filtered(skip) {
+  const f = S.f;
+  const q = f.q.trim().toUpperCase();
   const out = [];
   for (const x of S.results.values()) {
-    const options = x.options.filter((o) => (!S.board || o.board === S.board) && (!S.onlyAvailable || o.available));
+    if (q && !x.name.toUpperCase().includes(q)) continue;
+    if (skip !== 'stars' && f.stars.size && !f.stars.has(x.stars || 0)) continue;
+    if (skip !== 'rating' && f.rating && !(x.rating >= f.rating)) continue;
+    if (skip !== 'amen' && f.amen.size && ![...f.amen].every((k) => (x.amenityKeys || []).includes(k))) continue;
+    const options = x.options.filter((o) => (skip === 'boards' || !f.boards.size || f.boards.has(o.board)) && (skip === 'avail' || !f.onlyAvailable || o.available));
     if (!options.length) continue;
     const best = options.find((o) => o.available) || options[0];
+    if (skip !== 'price' && ((f.min != null && best.price < f.min) || (f.max != null && best.price > f.max))) continue;
     out.push({ ...x, options, from: best.price, fromBefore: best.priceBefore, fromAvailable: best.available });
   }
-  return out.sort((a, b) => a.from - b.from);
+  return out;
+}
+
+function visibleHotels() {
+  const by = {
+    'price-desc': (a, b) => b.from - a.from,
+    rating: (a, b) => (b.rating || 0) - (a.rating || 0) || a.from - b.from,
+    stars: (a, b) => (b.stars || 0) - (a.stars || 0) || a.from - b.from,
+  }[S.sort] || ((a, b) => a.from - b.from);
+  return filtered().sort(by);
+}
+
+const activeFilters = () => {
+  const f = S.f;
+  return (f.q.trim() ? 1 : 0) + (f.min != null || f.max != null ? 1 : 0) + f.stars.size + (f.rating ? 1 : 0) + f.boards.size + f.amen.size + (f.onlyAvailable ? 1 : 0);
+};
+function setFilter(fn) {
+  fn(S.f);
+  S.shown = 20;
+  renderAll();
+}
+function clearFilters() {
+  S.f = newFilters();
+  S.shown = 20;
+  renderAll();
 }
 
 function renderAll() {
   const p = S.params;
   if (!p) return;
+  if (!S.f) S.f = newFilters();
   document.body.classList.toggle('view-hotel', S.view === 'hotel');
   $('hotel').hidden = S.view !== 'hotel';
   if (S.view === 'hotel') return renderHotelPage();
@@ -532,34 +585,262 @@ function renderAll() {
   const st = [];
   if (!S.done) st.push(h('p', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), S.results.size ? `Търсим още… намерени ${plural(S.results.size, 'хотел', 'хотела')}` : 'Търсим най-добрите цени…'));
   else if (!S.results.size) st.push(h('p', { class: 'empty' }, 'Няма свободни хотели за тези дати. Пробвайте с други дати или друг курорт.'));
-  else st.push(h('p', null, h('strong', null, plural(S.results.size, 'хотел', 'хотела')), ` · ${where} · ${when}`));
+  else st.push(h('p', null, h('strong', null, where), ` · ${when}`));
   if (S.promo && S.results.size) st.push(h('p', { class: 'promo-on' }, `Промо код ${S.promo.code} (${S.promo.label}) е приложен – цените са с отстъпката.`));
   if (S.done && S.incomplete) st.push(h('p', { class: 'note' }, 'Част от цените не се заредиха. Опитайте отново след малко за пълен списък.'));
-  $('status').replaceChildren(...st);
+  fill($('status'), ...st);
 
-  renderFilters();
+  $('list').hidden = !S.results.size;
+  if (!S.results.size) return;
+  if (!S.dragging) renderSide(list); // докато се мести плъзгачът на цената, панелът не се пренарежда
+  renderSortbar(list);
+  renderList(list);
+}
 
-  // хотели
+function renderList(list) {
   const shown = list.slice(0, S.shown);
-  $('results').replaceChildren(...shown.map(hotelCard));
-  $('more').replaceChildren(
+  fill($('results'), ...(list.length ? shown.map(hotelCard) : [h('div', { class: 'no-match' },
+    h('p', null, 'Няма хотели с тези филтри.'),
+    h('button', { type: 'button', class: 'secondary', onclick: clearFilters }, 'Изчисти филтрите'))]));
+  fill($('more'), 
     ...(list.length > S.shown ? [h('button', { class: 'secondary', onclick: () => { S.shown += 20; renderAll(); } }, `Покажи още (${list.length - S.shown})`)] : [])
   );
 }
 
-const BOARD_ORDER = ['UAI', 'AI', 'FB+', 'FB', 'HB+', 'HB', 'BB', 'RO'];
-function renderFilters() {
+function renderSortbar(list) {
+  const n = activeFilters();
+  const total = S.results.size;
+  fill($('sortbar'), 
+    h('div', { class: 'sb-count', 'aria-live': 'polite' }, list.length === total ? plural(total, 'хотел', 'хотела') : `${list.length} от ${plural(total, 'хотел', 'хотела')}`),
+    h('div', { class: 'sb-actions' },
+      h('button', { type: 'button', class: 'sb-btn only-narrow', 'aria-controls': 'filters', onclick: openSide }, 'Филтри', n ? h('span', { class: 'sb-n' }, n) : null),
+      TCMap.enabled && list.some(hasGeo) ? h('button', { type: 'button', class: 'sb-btn only-narrow', onclick: () => openMap() }, 'Карта') : null,
+      h('label', { class: 'sb-sort' }, h('span', null, 'Подреди по'),
+        h('select', { onchange: (e) => { S.sort = e.target.value; S.shown = 20; renderAll(); } }, SORTS.map(([v, l]) => h('option', { value: v, selected: S.sort === v }, l))))));
+}
+
+// на телефона панелът с филтрите е отделен екран
+function openSide() {
+  $('filters').classList.add('open');
+  document.body.classList.add('side-open');
+  const first = $('filters').querySelector('input, button');
+  if (first) first.focus({ preventScroll: true });
+}
+function closeSide() {
+  $('filters').classList.remove('open');
+  document.body.classList.remove('side-open');
+}
+document.addEventListener('keydown', (e) => e.key === 'Escape' && document.body.classList.contains('side-open') && closeSide());
+window.addEventListener('pointerup', () => {
+  if (!S.dragging) return;
+  S.dragging = false;
+  renderAll();
+});
+
+function renderSide(list) {
+  const box = $('filters');
+  const f = S.f;
+  // резултатите идват на части и панелът се рисува наново – фокусът и курсорът остават
+  const act = document.activeElement;
+  const fk = act && box.contains(act) && act.dataset ? act.dataset.k : null;
+  const caret = fk && typeof act.selectionStart === 'number' ? act.selectionStart : null;
+  const sect = (title, ...kids) => h('section', { class: 'f-sec' }, h('h3', null, title), ...kids);
+  const check = (k, checked, label, n, onchange) => h('label', { class: `f-check${n === 0 && !checked ? ' zero' : ''}` },
+    h('input', { type: 'checkbox', checked, 'data-k': k, onchange }), h('span', null, label), n == null ? null : h('span', { class: 'n' }, n));
+  const parts = [];
+
+  // карта
+  const geo = list.filter(hasGeo);
+  if (TCMap.enabled && geo.length) {
+    parts.push(h('div', { class: 'f-map' },
+      mapEl('side', 'f-map-el', 'small', geo.map((x) => ({ id: x.hotelId, lat: x.lat, lon: x.lon, dot: true }))),
+      h('button', { type: 'button', class: 'f-map-btn', onclick: () => openMap() }, 'Покажи на картата')));
+  }
+
+  // име
+  parts.push(sect('Търсене по име', h('input', { type: 'search', class: 'f-name', placeholder: 'Име на хотела', value: f.q, 'data-k': 'q', 'aria-label': 'Търсене по име на хотела', oninput: (e) => { f.q = e.target.value; S.shown = 20; scheduleRender(); } })));
+
+  // цена
+  const pl = filtered('price').map((x) => x.from);
+  if (pl.length > 1) {
+    const lo = Math.floor(Math.min(...pl) / PRICE_STEP) * PRICE_STEP;
+    const hi = Math.ceil(Math.max(...pl) / PRICE_STEP) * PRICE_STEP;
+    if (hi > lo) {
+      const label = (a, b) => `${money(a)} – ${money(b)}`;
+      const rmin = h('input', { type: 'range', min: lo, max: hi, step: PRICE_STEP, value: Math.max(lo, f.min ?? lo), 'data-k': 'pmin', 'aria-label': 'Цена от' });
+      const rmax = h('input', { type: 'range', min: lo, max: hi, step: PRICE_STEP, value: Math.min(hi, f.max ?? hi), 'data-k': 'pmax', 'aria-label': 'Цена до' });
+      const out = h('div', { class: 'f-price-val' }, label(Number(rmin.value), Number(rmax.value)));
+      const bar = h('div', { class: 'f-range-fill' });
+      const paint = () => {
+        bar.style.left = `${((rmin.value - lo) / (hi - lo)) * 100}%`;
+        bar.style.right = `${100 - ((rmax.value - lo) / (hi - lo)) * 100}%`;
+      };
+      paint();
+      const upd = (final) => (e) => {
+        let a = Number(rmin.value);
+        let b = Number(rmax.value);
+        if (a > b) {
+          if (e.target === rmin) rmin.value = a = b;
+          else rmax.value = b = a;
+        }
+        f.min = a <= lo ? null : a;
+        f.max = b >= hi ? null : b;
+        out.textContent = label(a, b);
+        paint();
+        S.shown = 20;
+        if (final) {
+          S.dragging = false;
+          renderAll();
+        } else {
+          const l = visibleHotels();
+          renderSortbar(l);
+          renderList(l);
+        }
+      };
+      for (const r of [rmin, rmax]) {
+        r.addEventListener('input', upd(false));
+        r.addEventListener('change', upd(true));
+        r.addEventListener('pointerdown', () => (S.dragging = true));
+      }
+      parts.push(sect('Цена за престоя', out, h('div', { class: 'f-range' }, h('div', { class: 'f-range-track' }, bar), rmin, rmax)));
+    }
+  }
+
+  // изхранване
+  const bl = filtered('boards');
   const boards = new Map();
   for (const x of S.results.values()) for (const o of x.options) if (!boards.has(o.board)) boards.set(o.board, o.boardGroupLabel || o.boardLabel);
-  const box = $('filters');
-  box.hidden = boards.size < 2 && !S.results.size;
-  if (box.hidden) return;
-  const sorted = [...boards].sort((a, b) => (BOARD_ORDER.indexOf(a[0]) + 99) % 99 - (BOARD_ORDER.indexOf(b[0]) + 99) % 99);
-  const chip = (value, label) => h('button', { type: 'button', class: `chip${S.board === value ? ' on' : ''}`, 'aria-pressed': String(S.board === value), onclick: () => { S.board = value; S.shown = 20; renderAll(); } }, label);
-  box.replaceChildren(
-    h('div', { class: 'chips', role: 'group', 'aria-label': 'Изхранване' }, chip('', 'Всички'), sorted.map(([v, l]) => chip(v, l))),
-    h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.onlyAvailable, onchange: (e) => { S.onlyAvailable = e.target.checked; S.shown = 20; renderAll(); } }), 'Само с потвърдени места')
-  );
+  if (boards.size > 1 || f.boards.size) {
+    const sorted = [...boards].sort((a, b) => ((BOARD_ORDER.indexOf(a[0]) + 99) % 99) - ((BOARD_ORDER.indexOf(b[0]) + 99) % 99));
+    parts.push(sect('Изхранване', sorted.map(([v, l]) => check(`b-${v}`, f.boards.has(v), l, bl.filter((x) => x.options.some((o) => o.board === v)).length,
+      () => setFilter((ff) => (ff.boards.has(v) ? ff.boards.delete(v) : ff.boards.add(v)))))));
+  }
+
+  // оценка на гостите (от нашия сайт, от 5)
+  const rl = filtered('rating');
+  if ([...S.results.values()].some((x) => x.rating)) {
+    parts.push(sect('Оценка на гостите', h('div', { role: 'radiogroup', 'aria-label': 'Оценка на гостите' }, RATINGS.map(([v, l]) => h('label', { class: 'f-check' },
+      h('input', { type: 'radio', name: 'f-rating', checked: f.rating === v, 'data-k': `r${v}`, onchange: () => setFilter((ff) => (ff.rating = v)) }),
+      h('span', null, l), h('span', { class: 'n' }, v ? rl.filter((x) => x.rating >= v).length : rl.length))))));
+  }
+
+  // звезди
+  const sl = filtered('stars');
+  const starVals = [5, 4, 3, 2, 1].filter((v) => f.stars.has(v) || [...S.results.values()].some((x) => x.stars === v));
+  if (starVals.length > 1 || f.stars.size) {
+    parts.push(sect('Звезди', h('div', { class: 'f-stars' }, starVals.map((v) => h('button', {
+      type: 'button', class: `f-star${f.stars.has(v) ? ' on' : ''}`, 'aria-pressed': String(f.stars.has(v)), 'data-k': `s${v}`, 'aria-label': `${v} звезди`,
+      onclick: () => setFilter((ff) => (ff.stars.has(v) ? ff.stars.delete(v) : ff.stars.add(v))),
+    }, `${v} ★`, h('small', null, sl.filter((x) => x.stars === v).length))))));
+  }
+
+  // удобства (от описанието на сайта)
+  const al = filtered('amen');
+  const amen = new Map();
+  for (const x of S.results.values()) for (const k of x.amenityKeys || []) if (AMEN_LABEL[k]) amen.set(k, 0);
+  for (const x of al) {
+    const keys = x.amenityKeys || [];
+    if (![...f.amen].every((k) => keys.includes(k))) continue;
+    for (const k of keys) if (amen.has(k)) amen.set(k, amen.get(k) + 1);
+  }
+  if (amen.size) {
+    const order = [...amen].sort((a, b) => b[1] - a[1] || AMEN_LABEL[a[0]].localeCompare(AMEN_LABEL[b[0]]));
+    const showAll = S.amenMore || order.length <= 8;
+    const shown = showAll ? order : order.slice(0, 8).concat(order.slice(8).filter(([k]) => f.amen.has(k)));
+    parts.push(sect('Удобства', shown.map(([k, n]) => check(`a-${k}`, f.amen.has(k), AMEN_LABEL[k], n, () => setFilter((ff) => (ff.amen.has(k) ? ff.amen.delete(k) : ff.amen.add(k))))),
+      order.length > 8 ? h('button', { type: 'button', class: 'link f-more', 'data-k': 'amore', onclick: () => { S.amenMore = !S.amenMore; renderAll(); } }, S.amenMore ? 'По-малко' : `Още ${order.length - 8}`) : null));
+  }
+
+  // наличност
+  const vl = filtered('avail');
+  parts.push(sect('Наличност', check('avail', f.onlyAvailable, 'Само с потвърдени места', vl.filter((x) => x.options.some((o) => o.available)).length,
+    () => setFilter((ff) => (ff.onlyAvailable = !ff.onlyAvailable)))));
+
+  const n = activeFilters();
+  fill(box, 
+    h('div', { class: 'f-head' }, h('h2', null, 'Филтри'),
+      n ? h('button', { type: 'button', class: 'link', 'data-k': 'clear', onclick: clearFilters }, 'Изчисти') : null,
+      h('button', { type: 'button', class: 'f-close only-narrow', 'aria-label': 'Затвори филтрите', onclick: closeSide }, '×')),
+    ...parts,
+    h('div', { class: 'f-done only-narrow' }, h('button', { type: 'button', class: 'primary', onclick: () => { closeSide(); window.scrollTo({ top: $('list').offsetTop - 10 }); } }, `Покажи ${plural(list.length, 'хотел', 'хотела')}`)));
+  if (fk) {
+    const e = box.querySelector(`[data-k="${CSS.escape(fk)}"]`);
+    if (e) {
+      e.focus({ preventScroll: true });
+      if (caret != null && e.setSelectionRange) {
+        try {
+          e.setSelectionRange(caret, caret);
+        } catch {
+          /* полето не поддържа курсор */
+        }
+      }
+    }
+  }
+}
+
+// ---------- карти ----------
+// Картата се пази между прерисуванията (иначе се зарежда наново и губи мащаба): key -> { el, map, sig }
+const maps = new Map();
+function mapEl(key, cls, mode, points, opts = {}) {
+  const sig = JSON.stringify(points.map((p) => [p.id, p.lat, p.lon, p.label || '']));
+  let m = maps.get(key);
+  if (!m) {
+    const el = h('div', { class: cls, 'aria-label': opts.label || 'Карта' });
+    m = { el, map: TCMap.create(el, { points, mode, onPick: opts.onPick, maxFit: opts.maxFit }), sig };
+    maps.set(key, m);
+    if (maps.size > 8) {
+      const [k0, old] = maps.entries().next().value;
+      old.map.destroy();
+      maps.delete(k0);
+    }
+  } else if (m.sig !== sig) {
+    m.map.setPoints(points);
+    m.sig = sig;
+  }
+  return m.el;
+}
+const gmaps = (lat, lon) => `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+
+// Голямата карта: всички хотели от списъка с цените им, или само един (от страницата на хотела)
+function openMap(only) {
+  const dlg = $('mapdlg');
+  const list = only ? [only] : visibleHotels();
+  const pts = list.filter(hasGeo);
+  if (!TCMap.enabled || !pts.length) return;
+  const card = h('div', { class: 'md-card', hidden: true });
+  const el = h('div', { class: 'md-map', 'aria-label': only ? `Карта – ${only.name}` : 'Карта на хотелите' });
+  const missing = list.length - pts.length;
+  fill(dlg, 
+    h('div', { class: 'md-head' },
+      h('div', null,
+        h('strong', null, only ? only.name : `${areaName(S.params.area || '')} · ${plural(pts.length, 'хотел', 'хотела')} на картата`),
+        !only && missing ? h('small', { class: 'muted' }, ` · ${missing} без отбелязано място`) : null,
+        only ? h('a', { class: 'md-gm', href: gmaps(only.lat, only.lon), target: '_blank', rel: 'noopener' }, 'Google Maps ↗') : null),
+      h('button', { type: 'button', class: 'close', 'aria-label': 'Затвори картата', onclick: () => dlg.close() }, '×')),
+    el,
+    card);
+  dlg.showModal();
+  const show = (id) => {
+    const x = list.find((y) => y.hotelId === id);
+    if (!x || only) return;
+    const b = x.from != null ? { price: x.from, priceBefore: x.fromBefore, currency: x.currency } : bestOf(x);
+    card.hidden = false;
+    fill(card, 
+      x.image ? h('img', { src: x.image, alt: '' }) : null,
+      h('div', { class: 'md-info' },
+        h('strong', null, x.name, x.stars ? h('span', { class: 'stars' }, ' ', '★'.repeat(x.stars)) : null),
+        h('div', { class: 'area' }, areaName(x.area), x.rating ? ` · ★ ${x.rating.toFixed(1)}` : ''),
+        h('div', { class: 'md-price' }, h('small', null, 'от '), h('strong', null, priceNode(b.price, b.priceBefore, b.currency)))),
+      h('button', { type: 'button', class: 'primary', onclick: () => { dlg.close(); openHotel(x); } }, 'Виж хотела'));
+  };
+  const m = TCMap.create(el, {
+    mode: 'full',
+    maxFit: only ? 15 : 14,
+    points: pts.map((x) => ({ id: x.hotelId, lat: x.lat, lon: x.lon, title: x.name, label: x.from != null ? money(x.from, x.currency) : '' })),
+    onPick: show,
+  });
+  dlg.addEventListener('close', () => m.destroy(), { once: true });
+  el.focus({ preventScroll: true });
 }
 
 function hotelCard(x) {
@@ -615,7 +896,7 @@ function hotelUrl(id) {
 // От списъка към хотела – без ново търсене (цените вече са тук)
 function openHotel(x, { push = true } = {}) {
   if (S.view === 'list') {
-    S.prev = { params: S.params, results: S.results, done: S.done, incomplete: S.incomplete, shown: S.shown, board: S.board, onlyAvailable: S.onlyAvailable, scroll: window.scrollY, target: S.target, where: $('where').value, promo: S.promo ? S.promo.code : '' };
+    S.prev = { params: S.params, results: S.results, done: S.done, incomplete: S.incomplete, shown: S.shown, f: copyFilters(S.f), sort: S.sort, scroll: window.scrollY, target: S.target, where: $('where').value, promo: S.promo ? S.promo.code : '' };
   }
   S.view = 'hotel';
   S.hotelId = x.hotelId;
@@ -637,7 +918,7 @@ function backToList() {
   // запазеният списък – само ако е за същите дати, хора и промо код (иначе цените в него са други)
   const same = S.prev && ['date', 'nights', 'adults'].every((k) => S.prev.params[k] === p[k]) && S.prev.params.childAges.join() === p.childAges.join() && S.prev.promo === (S.promo ? S.promo.code : '');
   if (same) {
-    Object.assign(S, { params: S.prev.params, results: S.prev.results, done: S.prev.done, incomplete: S.prev.incomplete, shown: S.prev.shown, board: S.prev.board, onlyAvailable: S.prev.onlyAvailable, target: S.prev.target, view: 'list', hotelId: null });
+    Object.assign(S, { params: S.prev.params, results: S.prev.results, done: S.prev.done, incomplete: S.prev.incomplete, shown: S.prev.shown, f: copyFilters(S.prev.f), sort: S.prev.sort, target: S.prev.target, view: 'list', hotelId: null });
     $('where').value = S.prev.where;
     const y = S.prev.scroll;
     saveUrl(S.params);
@@ -701,6 +982,11 @@ function renderHotelPage() {
   const go = (sel) => () => box.querySelector(sel).scrollIntoView({ behavior: 'smooth', block: 'start' });
   const boards = x ? [...new Set(x.options.map((o) => o.boardLabel))] : [];
   const sec = (re) => sections.find((s) => re.test(s.title));
+  // къде е хотелът: от страницата му (api/hotel) или от резултатите
+  const lat = info && info.lat != null ? info.lat : x && x.lat;
+  const lon = info && info.lon != null ? info.lon : x && x.lon;
+  const geo = TCMap.enabled && lat != null && lon != null ? { hotelId: id, name, lat, lon } : null;
+  const bigMap = () => openMap(geo);
 
   const mosaic = photos.length
     ? h('div', { class: `mosaic n${Math.min(photos.length, 5)}` },
@@ -718,7 +1004,7 @@ function renderHotelPage() {
     roomsBody.push(h('div', { class: 'rooms' }, groups.map((g) => roomCard(x, g))));
   }
 
-  box.replaceChildren(
+  fill(box, 
     h('nav', { class: 'crumbs' },
       area ? h('button', { type: 'button', class: 'link back', onclick: () => (S.prev && history.state && history.state.v === 'hotel' ? history.back() : backToList()) }, `← Всички хотели в ${areaName(area)}`) : null),
     mosaic,
@@ -733,6 +1019,9 @@ function renderHotelPage() {
           boards.length ? h('li', null, h('strong', null, 'Изхранване: '), boards.join(', ')) : null,
           sec(/Плаж/i) ? h('li', null, h('strong', null, 'Плаж: '), firstSentence(sec(/Плаж/i).text)) : null,
           sec(/Разположение/i) ? h('li', null, h('strong', null, 'Разположение: '), firstSentence(sec(/Разположение/i).text)) : null),
+        geo ? h('div', { class: 'h-mini' },
+          h('button', { type: 'button', class: 'h-mini-btn', 'aria-label': 'Виж хотела на картата', onclick: bigMap }, mapEl(`mini:${id}`, 'h-mini-map', 'small', [{ id, lat, lon }], { maxFit: 12 })),
+          h('div', null, h('strong', null, `${areaName(area)}, Турция`), h('button', { type: 'button', class: 'link', onclick: bigMap }, 'Виж на картата'))) : null,
         amenitiesBlock(info)),
       h('aside', { class: 'price-box' },
         best ? [h('small', { class: 'muted' }, 'от'), h('div', { class: 'big' }, priceNode(best.price, best.priceBefore, best.currency)), h('small', { class: 'muted' }, `общо за ${plural(p.nights, 'нощувка', 'нощувки')}, ${pax(p.adults, p.childAges.length)}`),
@@ -750,7 +1039,12 @@ function renderHotelPage() {
     h('section', { id: 'h-location', class: 'h-section' },
       h('h2', null, 'Местоположение'),
       h('p', null, `${areaName(area)}, Турция`),
-      info && info.lat && info.lon ? h('p', null, h('a', { href: `https://www.openstreetmap.org/?mlat=${info.lat}&mlon=${info.lon}#map=15/${info.lat}/${info.lon}`, target: '_blank', rel: 'noopener' }, 'Виж на картата ↗')) : null),
+      geo ? [
+        mapEl(`loc:${id}`, 'h-map', 'embed', [{ id, lat, lon, title: name }], { label: `Карта – ${name}`, maxFit: 15 }),
+        h('p', { class: 'h-map-links' },
+          h('button', { type: 'button', class: 'link', onclick: bigMap }, 'Голяма карта'),
+          h('a', { href: gmaps(lat, lon), target: '_blank', rel: 'noopener' }, 'Отвори в Google Maps ↗')),
+      ] : info !== undefined ? h('p', { class: 'muted' }, 'Точното място на хотела още не е отбелязано на картата.') : null),
     h('section', { id: 'h-policies', class: 'h-section' },
       h('h2', null, 'Условия'),
       h('ul', { class: 'policies' },
@@ -815,7 +1109,7 @@ function openGallery(name, photos, start = 0) {
     if (e.key === 'ArrowRight') show(i + 1);
     else if (e.key === 'ArrowLeft') show(i - 1);
   };
-  dlg.replaceChildren(
+  fill(dlg, 
     h('div', { class: 'b-head' }, h('h2', null, name), close),
     h('div', { class: 'gallery' },
       h('div', { class: 'g-stage' }, big,
@@ -881,7 +1175,7 @@ function openBooking(x, o) {
   const priceBox = h('div', { class: 'b-price' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Проверяваме цената…');
   const notice = h('div', { class: 'b-notice', role: 'status' });
   const form = bookingForm(p);
-  dlg.replaceChildren(
+  fill(dlg, 
     h('div', { class: 'b-head' }, h('h2', { id: 'book-title' }, 'Заявка за резервация'), h('button', { class: 'close', 'aria-label': 'Затвори', onclick: () => dlg.close() }, '×')),
     h('div', { class: 'b-sum' },
       h('strong', null, x.name, x.stars ? ` ${'★'.repeat(x.stars)}` : ''), h('div', { class: 'muted' }, areaName(x.area)),
@@ -894,19 +1188,19 @@ function openBooking(x, o) {
 
 async function recheck(priceBox, notice, form) {
   const o = B.option;
-  const showPrice = () => priceBox.replaceChildren(h('span', null, 'Обща цена', S.promo && B.priceBefore ? h('small', { class: 'muted' }, ` · промо код ${S.promo.code}`) : null), h('strong', null, priceNode(B.price, B.priceBefore, o.currency)));
+  const showPrice = () => fill(priceBox, h('span', null, 'Обща цена', S.promo && B.priceBefore ? h('small', { class: 'muted' }, ` · промо код ${S.promo.code}`) : null), h('strong', null, priceNode(B.price, B.priceBefore, o.currency)));
   try {
     const r = await fetch(`api/offer/${encodeURIComponent(o.offerKey)}/recheck${S.promo ? `?promo=${encodeURIComponent(S.promo.code)}` : ''}`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     if (r.status === 410) {
-      priceBox.replaceChildren();
-      notice.replaceChildren(h('p', { class: 'error' }, j.error || 'Тази оферта вече не е налична.'));
+      fill(priceBox, );
+      fill(notice, h('p', { class: 'error' }, j.error || 'Тази оферта вече не е налична.'));
       form.hidden = true;
       return;
     }
     if (!r.ok) {
       showPrice();
-      notice.replaceChildren(h('p', { class: 'note' }, 'Не успяхме да проверим цената сега – ще я проверим отново при изпращане.'));
+      fill(notice, h('p', { class: 'note' }, 'Не успяхме да проверим цената сега – ще я проверим отново при изпращане.'));
       return;
     }
     B.price = j.price;
@@ -915,7 +1209,7 @@ async function recheck(priceBox, notice, form) {
     const msgs = [];
     if (j.changed) msgs.push(h('p', { class: 'note' }, `Цената току-що се промени: беше ${money(j.previousPrice, j.currency)}, сега е ${money(j.price, j.currency)}.`));
     if (j.onRequest) msgs.push(h('p', { class: 'note' }, 'Тази стая е по запитване – ще потвърдим свободните места и ще ви се обадим.'));
-    notice.replaceChildren(...msgs);
+    fill(notice, ...msgs);
   } catch {
     showPrice();
   }
@@ -989,7 +1283,7 @@ async function submitBooking(e, form, err, send) {
         S.promo = null;
         renderPromo('Промо кодът вече не важи.');
       }
-      document.querySelector('.b-price').replaceChildren(h('span', null, 'Обща цена'), h('strong', null, priceNode(j.price, j.priceBefore, j.currency)));
+      fill(document.querySelector('.b-price'), h('span', null, 'Обща цена'), h('strong', null, priceNode(j.price, j.priceBefore, j.currency)));
       err.textContent = `${j.reason === 'promo_invalid' ? 'Промо кодът вече не важи. ' : 'Цената току-що се промени. '}Новата цена е ${money(j.price, j.currency)}. Натиснете „Изпрати заявката“ отново, за да я потвърдите.`;
     } else {
       err.textContent = j.error || 'Заявката не беше изпратена. Опитайте отново.';
@@ -1019,7 +1313,7 @@ function isoDate(s) {
 
 function done(j) {
   const dlg = $('book');
-  dlg.replaceChildren(
+  fill(dlg, 
     h('div', { class: 'b-head' }, h('h2', { id: 'book-title' }, 'Заявката е изпратена'), h('button', { class: 'close', 'aria-label': 'Затвори', onclick: () => dlg.close() }, '×')),
     h('div', { class: 'b-done' },
       h('p', null, 'Номер на заявката: ', h('strong', { class: 'ref' }, j.bookingId)),
@@ -1034,12 +1328,12 @@ function done(j) {
 function renderPromo(msg = '') {
   const box = $('promo');
   if (S.promo) {
-    box.replaceChildren(h('span', { class: 'promo-chip' }, 'Промо код ', h('strong', null, S.promo.code), ` · ${S.promo.label}`,
+    fill(box, h('span', { class: 'promo-chip' }, 'Промо код ', h('strong', null, S.promo.code), ` · ${S.promo.label}`,
       h('button', { type: 'button', class: 'x', 'aria-label': 'Махни промо кода', onclick: removePromo }, '×')));
     return;
   }
   if (!S.promoOpen) {
-    box.replaceChildren(h('button', { type: 'button', class: 'link promo-open', onclick: () => { S.promoOpen = true; renderPromo(); box.querySelector('input').focus(); } }, 'Имате промо код?'),
+    fill(box, h('button', { type: 'button', class: 'link promo-open', onclick: () => { S.promoOpen = true; renderPromo(); box.querySelector('input').focus(); } }, 'Имате промо код?'),
       msg ? h('span', { class: 'promo-err', role: 'alert' }, msg) : null);
     return;
   }
@@ -1056,7 +1350,7 @@ function renderPromo(msg = '') {
       input.select();
     }
   } }, 'Приложи');
-  box.replaceChildren(h('span', { class: 'promo-form' }, input, btn, h('button', { type: 'button', class: 'link', onclick: () => { S.promoOpen = false; renderPromo(); } }, 'Отказ')), err);
+  fill(box, h('span', { class: 'promo-form' }, input, btn, h('button', { type: 'button', class: 'link', onclick: () => { S.promoOpen = false; renderPromo(); } }, 'Отказ')), err);
 }
 
 // Проверява кода при сървъра; при успех – търси наново (цените с отстъпка ги смята сървърът)
@@ -1090,7 +1384,7 @@ function renderPopular() {
   const box = $('popular');
   box.hidden = Boolean(S.params) || !S.areas.length;
   if (box.hidden) return;
-  $('popular-list').replaceChildren(...S.areas.slice(0, 8).map((a) => h('button', { type: 'button', class: 'resort', onclick: () => {
+  fill($('popular-list'), ...S.areas.slice(0, 8).map((a) => h('button', { type: 'button', class: 'resort', onclick: () => {
     pick({ label: areaName(a.area), value: { area: a.area } });
     $('search').scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (S.checkIn && S.checkOut) $('search').requestSubmit();
@@ -1107,7 +1401,7 @@ function renderPopular() {
   } catch {
     S.areas = [];
   }
-  if (!S.areas.length) $('status').replaceChildren(h('p', { class: 'note' }, 'Търсенето временно не работи. Моля, опитайте по-късно.'));
+  if (!S.areas.length) fill($('status'), h('p', { class: 'note' }, 'Търсенето временно не работи. Моля, опитайте по-късно.'));
   loadUrl();
   renderPopular();
 })();

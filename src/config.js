@@ -55,6 +55,9 @@ module.exports = {
   SITE_URL: (env.SITE_URL || 'https://www.tours-club.com').replace(/\/+$/, ''),
   // Къде води логото на търсачката (празно – началото на търсачката, напр. busrent.eu/book/)
   LOGO_URL: env.LOGO_URL || '',
+  // Картата на хотелите: адрес на плочките ({z}/{x}/{y}) и надпис за авторските права; MAP_TILES=off – без карта
+  MAP_TILES: env.MAP_TILES === 'off' ? '' : env.MAP_TILES || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  MAP_ATTRIBUTION: env.MAP_ATTRIBUTION || '© OpenStreetMap',
   // Голямата снимка най-горе на страницата за търсене (празно – снимката от началото на сайта)
   HERO_IMAGE: env.HERO_IMAGE || undefined,
   // Кога всяка нощ се обновява каталогът от операторите (местно време, hh:mm)

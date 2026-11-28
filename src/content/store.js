@@ -112,7 +112,15 @@ class ContentStore {
     if (!s) return null;
     const am = amenitiesOf(s);
     const top = CARD_AMENITIES.map((k) => am.find((a) => a.key === k)).filter(Boolean).slice(0, 4);
-    return { image: s.photos[0] ? s.photos[0].thumb : null, photos: s.photos.length, rating: s.rating, reviews: s.reviews, siteUrl: s.url, amenities: top };
+    // amenityKeys – всички удобства (за филтъра вляво), amenities – до 4 за картата
+    return { image: s.photos[0] ? s.photos[0].thumb : null, photos: s.photos.length, rating: s.rating, reviews: s.reviews, siteUrl: s.url, amenities: top, amenityKeys: am.map((a) => a.key) };
+  }
+
+  // Координатите от картата на страницата в сайта (за src/catalog/geo.js)
+  geo(hotelId) {
+    this.maybeReload();
+    const s = this.byHotel.get(hotelId);
+    return s && s.lat != null && s.lon != null ? { lat: s.lat, lon: s.lon } : null;
   }
 
   // Всичко за страницата/прозореца на хотела

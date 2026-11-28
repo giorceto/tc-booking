@@ -140,7 +140,7 @@ button.secondary { background: var(--panel); border: 1px solid var(--line); bord
 button.link { background: none; border: 0; color: var(--sea-text); padding: 8px 0 0; cursor: pointer; }
 .cal-foot button.link { padding: 0; }
 
-/* статус и филтри */
+/* статус */
 .status { margin: 8px 0 0; }
 .status p { margin: 6px 0; }
 .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); }
@@ -150,11 +150,94 @@ button.link { background: none; border: 0; color: var(--sea-text); padding: 8px 
 .note { color: var(--rq-text); background: var(--rq); padding: 8px 12px; border-radius: 8px; }
 .error { color: var(--danger); }
 .empty { color: var(--muted); padding: 24px 0; }
-.filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 5px 12px; font-size: 14px; cursor: pointer; }
-.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
-.check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+
+/* резултати: филтри вляво, списък вдясно */
+.list-layout { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 8px; }
+.side { display: grid; gap: 4px; }
+.f-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.f-head h2 { margin: 0; font-size: 18px; }
+.f-head .link { padding: 0; font-weight: 600; }
+.f-sec { border-top: 1px solid var(--line); padding: 14px 0 10px; }
+.f-sec h3 { margin: 0 0 8px; font-size: 15px; }
+.f-check { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 5px 0; font-size: 14.5px; cursor: pointer; }
+.f-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--brand); }
+.f-check .n { color: var(--muted); font-size: 13px; }
+.f-check.zero { color: var(--muted); }
+.f-name { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: var(--panel); }
+.f-stars { display: flex; flex-wrap: wrap; gap: 6px; }
+.f-star { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.f-star small { color: var(--muted); font-weight: 400; }
+.f-star.on { background: var(--brand); color: var(--brand-text); border-color: var(--brand); }
+.f-star.on small { color: inherit; opacity: .8; }
+.f-more { padding: 6px 0 0; font-weight: 600; }
+.f-price-val { font-weight: 600; margin-bottom: 6px; }
+.f-range { position: relative; height: 28px; }
+.f-range-track { position: absolute; left: 9px; right: 9px; top: 12px; height: 4px; border-radius: 4px; background: var(--line); }
+.f-range-fill { position: absolute; top: 0; bottom: 0; background: var(--brand); border-radius: 4px; }
+.f-range input { position: absolute; left: 0; top: 0; width: 100%; height: 28px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.f-range input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); border: 2px solid var(--brand); cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, .2); }
+.f-range input::-moz-range-thumb { pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); border: 2px solid var(--brand); cursor: pointer; }
+.f-range input::-webkit-slider-runnable-track { background: none; }
+.f-range input::-moz-range-track { background: none; }
+.f-range input:focus-visible { outline: none; }
+.f-range input:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.f-map { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 12px; }
+.f-map-el { height: 150px; }
+.f-map-btn { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--brand); color: var(--brand-text); border: 0; border-radius: 999px; padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.f-map-btn::after { content: ''; position: absolute; inset: -200px -200px -20px; } /* цялата карта отваря голямата */
+.only-narrow { display: none !important; }
+.sortbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.sb-count { font-weight: 700; }
+.sb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sb-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 7px 14px; cursor: pointer; font-weight: 600; }
+.sb-n { background: var(--brand); color: var(--brand-text); border-radius: 999px; font-size: 12px; min-width: 20px; padding: 0 6px; text-align: center; }
+.sb-sort { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.sb-sort select { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; background: var(--panel); color: var(--text); }
+.no-match { text-align: center; padding: 30px 10px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
+
+/* карта (src/site/static/map.js) – плочките са светли и в тъмния режим */
+.tmap { position: relative; overflow: hidden; background: #e8eef3; user-select: none; -webkit-user-select: none; cursor: grab; touch-action: pan-x pan-y; }
+.tmap.dragging { cursor: grabbing; }
+.tmap-small { cursor: pointer; }
+.tmap-full { touch-action: none; }
+.tm-tiles, .tm-pins { position: absolute; inset: 0; }
+.tm-pins { pointer-events: none; }
+.tm-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; }
+.tm-pin { position: absolute; left: 0; top: 0; pointer-events: auto; }
+.tm-pin.price { z-index: 1; translate: -50% calc(-100% - 6px); background: #fff; color: #14213d; border: 1px solid rgba(20, 33, 61, .25); border-radius: 999px; padding: 3px 9px; font: 700 13px/1.3 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); cursor: pointer; }
+.tm-pin.price::after { content: ''; position: absolute; left: 50%; bottom: -6px; translate: -50% 0; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+.tm-pin.price:hover, .tm-pin.price:focus-visible { z-index: 2; background: #14213d; color: #fff; }
+.tm-pin.price:hover::after, .tm-pin.price:focus-visible::after { border-top-color: #14213d; }
+.tm-pin.price.on { z-index: 3; background: #14213d; color: #fff; }
+.tm-pin.price.on::after { border-top-color: #14213d; }
+.tm-pin.price.mini { z-index: 0; translate: -50% -50%; width: 12px; height: 12px; padding: 0; font-size: 0; border: 2px solid #fff; background: #14213d; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.tm-pin.price.mini::after { display: none; }
+.tm-pin.price.mini:hover, .tm-pin.price.mini:focus-visible { z-index: 4; translate: -50% calc(-100% - 6px); width: auto; height: auto; padding: 3px 9px; font-size: 13px; border: 1px solid #14213d; }
+.tm-pin.marker { translate: -50% -100%; width: 30px; height: 40px; background: none; border: 0; padding: 0; }
+.tm-pin.marker svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+.tm-pin.marker path { fill: #e8590c; stroke: #fff; stroke-width: 1.5; }
+.tm-pin.marker circle { fill: #fff; }
+.tm-pin.dot { translate: -50% -50%; width: 11px; height: 11px; border-radius: 50%; background: #14213d; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.tmap-small .tm-pin.dot { width: 8px; height: 8px; border-width: 1.5px; }
+.tm-ui { position: absolute; right: 10px; top: 10px; display: grid; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 5px rgba(0, 0, 0, .3); }
+.tm-btn { width: 36px; height: 36px; border: 0; background: #fff; color: #1b2230; font-size: 20px; line-height: 1; cursor: pointer; }
+.tm-btn + .tm-btn { border-top: 1px solid #dfe3ea; }
+.tm-btn:disabled { color: #aab; cursor: default; }
+.tm-attr { position: absolute; right: 0; bottom: 0; background: rgba(255, 255, 255, .85); color: #333; font: 11px/1.4 system-ui, sans-serif; padding: 1px 6px; }
+.tm-attr a { color: inherit; }
+
+/* голямата карта */
+.map-dlg { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--text); }
+.map-dlg[open] { display: grid; grid-template-rows: auto 1fr; }
+.map-dlg::backdrop { background: rgba(0, 0, 0, .5); }
+.md-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.md-gm { margin-left: 14px; font-size: 14px; color: var(--sea-text); }
+.md-map { position: relative; min-height: 0; }
+.md-card { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; background: var(--panel); border-radius: 16px; padding: 10px; box-shadow: var(--shadow); }
+.md-card img { width: 104px; height: 78px; object-fit: cover; border-radius: 10px; display: block; }
+.md-info { min-width: 0; display: grid; gap: 2px; }
+.md-info strong { overflow: hidden; text-overflow: ellipsis; }
+.md-price strong { font-size: 18px; color: var(--price); }
 
 /* хотели */
 .results { display: grid; gap: 14px; margin-top: 6px; }
@@ -189,6 +272,17 @@ button.link { background: none; border: 0; color: var(--sea-text); padding: 8px 
 .amen-grid .ai { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .amenities .link { padding: 10px 0 0; font-weight: 600; }
 .amen-note { font-size: 12.5px; margin: 8px 0 0; }
+
+/* картата на страницата на хотела */
+.h-mini { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: center; margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+.h-mini > div { display: grid; gap: 2px; }
+.h-mini .link { justify-self: start; padding: 0; font-weight: 600; }
+.h-mini-btn { padding: 0; border: 0; border-radius: 10px; overflow: hidden; cursor: pointer; display: block; }
+.h-mini-map { width: 220px; height: 120px; }
+.h-map { height: 380px; border-radius: 14px; border: 1px solid var(--line); }
+.h-map-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.h-map-links .link { padding: 0; font-weight: 600; }
+.h-map-links a { color: var(--sea-text); }
 
 /* снимка в картата */
 .hotel.with-photo { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
@@ -230,7 +324,7 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
 
 /* изгледи: на страницата на хотела няма голямата снимка и списъка */
 .hotel-page { padding-bottom: 20px; }
-.view-hotel .hero, .view-hotel #popular, .view-hotel #status, .view-hotel #filters, .view-hotel #results, .view-hotel #more, .view-hotel .perks { display: none !important; }
+.view-hotel .hero, .view-hotel #popular, .view-hotel #status, .view-hotel #list, .view-hotel .perks { display: none !important; }
 .view-hotel .card-foot { margin-top: 10px; justify-content: flex-end; }
 .view-hotel .search-card { margin-top: 12px; padding: 14px; border-radius: 24px; box-shadow: 0 4px 18px rgba(16, 24, 40, .08); }
 
@@ -337,6 +431,18 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
   .go { margin: 6px 0 0; width: 100%; border-radius: 14px; }
 }
 @media (max-width: 900px) {
+  .list-layout { grid-template-columns: 1fr; }
+  .only-narrow { display: inline-flex !important; }
+  .side { display: none; }
+  .side.open { display: block; position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding: 14px 16px 0; }
+  .side.open .f-head { position: sticky; top: -14px; background: var(--bg); padding: 10px 0; z-index: 1; }
+  .f-close { font-size: 28px; line-height: 1; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; margin-left: auto; }
+  .f-done { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 16px; border-top: 1px solid var(--line); display: block !important; }
+  .f-done button { width: 100%; padding: 12px; }
+  .side-open { overflow: hidden; }
+  .h-map { height: 300px; }
+}
+@media (max-width: 900px) {
   .h-overview { grid-template-columns: 1fr; }
   .price-box { position: static; }
   .mosaic { grid-template-columns: 1fr 1fr; grid-template-rows: 220px 110px; }
@@ -354,6 +460,11 @@ button.link.small { font-size: 14px; padding: 4px 0 0; }
   .photo { aspect-ratio: 16 / 9; }
 }
 @media (max-width: 560px) {
+  .h-mini { grid-template-columns: 1fr; }
+  .h-mini-map { width: 100%; height: 140px; }
+  .md-card { grid-template-columns: 1fr auto; }
+  .md-card img { display: none; }
+  .sb-sort span { display: none; }
   .hotel { padding: 14px; }
   .hotel header { flex-direction: column; gap: 6px; }
   .from { text-align: left; display: flex; align-items: baseline; gap: 6px; }

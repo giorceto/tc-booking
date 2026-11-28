@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Хотели в Турция · Tours Club</title>
+<!--MAP-->
 <link rel="stylesheet" href="site.css">
+<script src="map.js" defer></script>
 <script src="site.js" defer></script>
 </head>
 <body>
@@ -58,14 +60,20 @@
   </section>
 
   <section id="status" class="status" aria-live="polite"></section>
-  <div id="filters" class="filters" hidden></div>
-  <section id="results" class="results"></section>
-  <div id="more" class="more"></div>
+  <div id="list" class="list-layout" hidden>
+    <aside id="filters" class="side" aria-label="Филтри"></aside>
+    <div class="list-main">
+      <div id="sortbar" class="sortbar"></div>
+      <section id="results" class="results"></section>
+      <div id="more" class="more"></div>
+    </div>
+  </div>
   <section id="hotel" class="hotel-page" hidden></section>
 </main>
 
 <dialog id="book" class="book" aria-labelledby="book-title"></dialog>
 <dialog id="gallery" class="gallery-dlg" aria-label="Снимки"></dialog>
+<dialog id="mapdlg" class="map-dlg" aria-label="Карта"></dialog>
 
 <footer class="wrap foot">
   Цените са за целия престой в една стая, с включено ранно записване. Заявката не е плащане – ще се свържем с вас за потвърждение.
