@@ -5,3 +5,4 @@ data/*.json
 data/contracts/
 !data/seed/
 *.log
+data/*.tmp

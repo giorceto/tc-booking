@@ -1,0 +1,1526 @@
+[
+ {
+  "code": "AGLUT",
+  "name": "A GOOD LIFE UTOPIA FAMILY RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "BRACCN",
+  "name": "ACANTHUS CENNET BARUT COLLECTION",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ADLART",
+  "name": "ADALYA ART SIDE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ADLRES",
+  "name": "ADALYA BLISS(+16 ADULT ONLY)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ADLELT",
+  "name": "ADALYA ELITE LARA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "ADLOCE",
+  "name": "ADALYA OCEAN DELUXE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ROYADM",
+  "name": "ADAM & EVE HOTEL (+16)",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PEGACL",
+  "name": "AQI PEGASOS CLUB",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "PEGARE",
+  "name": "AQI PEGASOS RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "PEGARO",
+  "name": "AQI PEGASOS ROYAL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "PEGAWO",
+  "name": "AQI PEGASOS WORLD",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BRARUM",
+  "name": "ARUM BARUT COLLECTION",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ASKJUB",
+  "name": "ASKA JUST IN BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "ASKLAR",
+  "name": "ASKA LARA RESORT & SPA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "SELFOR",
+  "name": "ASTERIA BLOOM SIDE (EX.SELECTUM FOR TWO)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ASTCLS",
+  "name": "ASTERIA COLLECTION SIDE(EX AMARA FAMILY&LABRANDA EXCELSIOR)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ASTBLK",
+  "name": "ASTERIA FAMILY RESORT BELEK(EX.AQUAWORLD)",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "ASTFMS",
+  "name": "ASTERIA FAMILY RESORT SIDE(EX.EUPHORIA PALM BEACH)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "AYDFAM",
+  "name": "AYDINBEY FAMOUS RESORT",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "AYDGOL",
+  "name": "AYDINBEY GOLD DREAMS HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "AYDKIN",
+  "name": "AYDINBEY KING'S PALACE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "AYDQUE",
+  "name": "AYDINBEY QUEEN'S PALACE",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "AYDSUI",
+  "name": "AYDINBEY SIU COLLECTION",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "AZURA",
+  "name": "AZURA DELUXE  RESORT&SPA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "WYNDAL",
+  "name": "AZURA WORLD HOTEL(EX.WYNDHAM ALANYA)",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "BALM",
+  "name": "BALMY BEACH RESORT(+18 ONLY ADULT)",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "BLMFR",
+  "name": "BALMY FORESTA",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "BARUTB",
+  "name": "BARUT B SUITES",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "GOIA",
+  "name": "BARUT GOIA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BRHMR",
+  "name": "BARUT HEMERA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BERRY",
+  "name": "BERRY BLUE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BSPSOR",
+  "name": "BOSPHORUS SORGUN HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "CALIDO",
+  "name": "CALIDO MARIS HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "STELLA",
+  "name": "CALIDO SOL HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "CTMRN",
+  "name": "CATAMARAN RESORT HOTEL QUALITY TIMES",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CSRTSD",
+  "name": "CESARS SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "CONCOR",
+  "name": "CONCORDE DE LUXE RESORT",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "CRDHYD",
+  "name": "CORENDON HYDROS CLUB KEMER",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "GRNPKM",
+  "name": "CORENDON PLAYA KEMER",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CRYSAD",
+  "name": "CRYSTAL ADMIRAL AQUA COLLECTION",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "CRYSAU",
+  "name": "CRYSTAL AURA AQUA COLLECTION",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CRYSBT",
+  "name": "CRYSTAL BOUTIQUE COMFORT COLLECTION(+16)",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "AMRCNT",
+  "name": "CRYSTAL CENTRO PEARL COLLECTION",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "CRYSDL",
+  "name": "CRYSTAL DE LUXE COMFORT COLLECTION",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CRYSFA",
+  "name": "CRYSTAL FAMILY COMFORT COLLECTION",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "CRYSFL",
+  "name": "CRYSTAL FLORA PEARL COLLECTION",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CRYSPR",
+  "name": "CRYSTAL PARAISO AQUA COLLECTION",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "AMPRE",
+  "name": "CRYSTAL PRESTIGE PEARL COLLECTION",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "CRYSUN",
+  "name": "CRYSTAL SUNSET PEARL COLLECTION",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "CRYSTA",
+  "name": "CRYSTAL TAT BEACH PEARL COLLECTION",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "CRYSWT",
+  "name": "CRYSTAL WATERWORLD AQUA COLLECTION",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "CRYCWO",
+  "name": "CRYSTAL WORLD OF COLOURS COMFORT COLLECTION",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "CLLNAN",
+  "name": "CULLINAN HOTELS BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "DELBGR",
+  "name": "DELPHIN BE GRAND RESORT",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "DELBOT",
+  "name": "DELPHIN BOTANIK HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "DELBPL",
+  "name": "DELPHIN BOTANIK PLATINUM HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "DELDLX",
+  "name": "DELPHIN DELUXE RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "DELDIV",
+  "name": "DELPHIN DIVA HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "DELIMP",
+  "name": "DELPHIN IMPERIAL HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "DELPLC",
+  "name": "DELPHIN PALACE HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "DIADLX",
+  "name": "DIAMOND DELUXE HOTEL & SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "DIAELT",
+  "name": "DIAMOND ELITE HOTEL & SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "DIAEXC",
+  "name": "DIAMOND EXCELLENCE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "DIAPRM",
+  "name": "DIAMOND PREMIUM HOTEL &SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "DOGA",
+  "name": "DOGANAY BEACH CLUB",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "DOSINA",
+  "name": "DOSINIA LUXURY RESORT",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "EFTAQU",
+  "name": "EFTALIA AQUA HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTBLU",
+  "name": "EFTALIA BLUE HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTAYT",
+  "name": "EFTALIA DOWN TOWN",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTMAR",
+  "name": "EFTALIA MARIN RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTOCE",
+  "name": "EFTALIA OCEAN HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTSL",
+  "name": "EFTALIA SOL HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTSPL",
+  "name": "EFTALIA SPLASH RESORT HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EFTVIL",
+  "name": "EFTALIA VILLAGE ",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "EOS",
+  "name": "EOS BEACH RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "ETHNO",
+  "name": "ETHNO HOTELS BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "FAMREL",
+  "name": "FAME RESIDENCE LARA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "GRNBCH",
+  "name": "GRANADA LUXURY BEACH AVSALLAR",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "GRNBLK",
+  "name": "GRANADA LUXURY BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "GRNOKR",
+  "name": "GRANADA LUXURY OKURCALAR",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "GRNLXR",
+  "name": "GRANADA LUXURY RED +16",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "GRNPAR",
+  "name": "GRAND PARK LARA HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "GRRING",
+  "name": "GRAND RING HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "SWGRES",
+  "name": "GREENWOOD KEMER RESORT",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "SWESUI",
+  "name": "GREENWOOD SUITES RESORT",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "GRLBL",
+  "name": "GURAL PREMIER BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "GRLPT",
+  "name": "GURAL PREMIER TEKIROVA",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "HYDRPL",
+  "name": "HAYDARPASHA PALACE HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "INVSTA",
+  "name": "INNVISTA HOTELS BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "JALX",
+  "name": "JACARANDA LUXURY RESORT",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "JADORE",
+  "name": "JADORE DELUXE HOTEL SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "JUSCLB",
+  "name": "JUSTINIANO CLUB ALANYA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "JUSRDL",
+  "name": "JUSTINIANO DELUXE RESORT HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "JUSPC",
+  "name": "JUSTINIANO PARK CONTI",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "VLSNFL",
+  "name": "KAIA CORACESIUM HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "KAMKCL",
+  "name": "KAMELYA AISHEN CLUB HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "KAMFUL",
+  "name": "KAMELYA FULYA HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "KAMSEL",
+  "name": "KAMELYA SELIN HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "KIRBLZ",
+  "name": "KIRMAN BELAZUR RESORT&SPA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "KLEOAB",
+  "name": "KLEOPATRA ADA BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "KLEOBC",
+  "name": "KLEOPATRA BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "KLEDR",
+  "name": "KLEOPATRA DREAMS BEACH",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "KLEORP",
+  "name": "KLEOPATRA ROYAL PALM HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "ASTKRM",
+  "name": "KREMLIN PALACE HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "LBRALN",
+  "name": "LABRANDA ALANTUR RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LAGO",
+  "name": "LAGO HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BRLARA",
+  "name": "LARA BARUT COLLECTION",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "LAVITA",
+  "name": "LAVITAS HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "LIBERL",
+  "name": "LIBERTY LARA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "LIMARC",
+  "name": "LIMAK ARCADIA GOLF&SPORT RESORT",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "LIMANT",
+  "name": "LIMAK ATLANTIS",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "LIMLAR",
+  "name": "LIMAK LARA DE LUXE",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "LIMLIM",
+  "name": "LIMAK LIMRA",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "LITORE",
+  "name": "LITORE RESORT HOTEL & SPA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LNCCTY",
+  "name": "LONICERA CITY HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LNCPRM",
+  "name": "LONICERA PREMIUM HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LNCRES",
+  "name": "LONICERA RESORT&SPA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LONIW",
+  "name": "LONICERA WEST HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LNCWRL",
+  "name": "LONICERA WORLD HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LUSSO",
+  "name": "LUSSO SORGUN",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "LUVI",
+  "name": "LUVIMARIS HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "LYKIA",
+  "name": "LYKIA WORLD&LINKS GOLF",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "MARDAN",
+  "name": "MARDAN PALACE HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "MASTER",
+  "name": "MASTER FAMILY CLUB HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "MIAIN",
+  "name": "MIAROSA INCEKUM BEACH",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "MIAKE",
+  "name": "MIAROSA KEMER BEACH",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "MIAKO",
+  "name": "MIAROSA KONAKLI GARDEN",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "MIRACL",
+  "name": "MIRACLE RESORT HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "MIRBCH",
+  "name": "MIRAMARE BEACH HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "MIRQEN",
+  "name": "MIRAMARE QUEEN HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "MNSR",
+  "name": "MONACHUS FAMILY RESORT SORGUN",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "MYLME",
+  "name": "MYLOME LUXURY HOTEL&RESORT",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "NRVACO",
+  "name": "NIRVANA COSMOPOLITAN",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "AMDVL",
+  "name": "NIRVANA DOLCE VITA LUXURY HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "NRVANA",
+  "name": "NIRVANA MEDITERRANEAN EXCELLENCE HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "NUMAEX",
+  "name": "NUMA BAY EXCLUSIVE",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "NUMAKO",
+  "name": "NUMA KONAKTEPE HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "OCALY",
+  "name": "ORANGE COUNTY ALANYA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "OCBLK",
+  "name": "ORANGE COUNTY BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "OCKMR",
+  "name": "ORANGE COUNTY KEMER",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "OZHIK",
+  "name": "OZ HOTELS INCEKUM BEACH",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "OZSIDP",
+  "name": "OZ HOTELS SIDE PREMIUM",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "OZSUIH",
+  "name": "OZ HOTELS SUI",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "OZKIN",
+  "name": "OZKAYMAK INCEKUM RESORT HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "OZKM",
+  "name": "OZKAYMAK MARINA HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "OZKMO",
+  "name": "OZKAYMAK OTEM HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "OZKSL",
+  "name": "OZKAYMAK SELECT RESORT HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "PLMBCH",
+  "name": "PALMERAS BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "PLMFN",
+  "name": "PALOMA FINESSE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "PALOGR",
+  "name": "PALOMA GRIDA RESORT & SPA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PLMOCN",
+  "name": "PALOMA OCEANA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "PLMORN",
+  "name": "PALOMA ORENDA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "PLPRRS",
+  "name": "PALOMA PERISSIA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "PLMSNC",
+  "name": "PALOMA SENCIA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PAPAYS",
+  "name": "PAPILLON AYSCHA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PAPBLV",
+  "name": "PAPILLON BELVIL CLUB",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PAPZEM",
+  "name": "PAPILLON ZEUGMA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "MARTPB",
+  "name": "PINE BEACH HOTEL",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PORT",
+  "name": "PORT NATURE LUXURY RESORT & SPA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "PRTBLO",
+  "name": "PORTO BELLO HOTEL RESORT & SPA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "PRJALY",
+  "name": "PRESTIGE ALANYA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "RMDSD",
+  "name": "RAMADA RESORT BY WYNDHAM SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "REGNUM",
+  "name": "REGNUM CARYA GOLF & SPA RESORT",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "REGCRW",
+  "name": "REGNUM THE CROWN",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "RELAX",
+  "name": "RELAX BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "RIOVTS",
+  "name": "RIOLAVITAS RESORT",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "RIXDWT",
+  "name": "RIXOS DOWNTOWN ANTALYA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "RIXPAR",
+  "name": "RIXOS PARK BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "RIXBLK",
+  "name": "RIXOS PREMIUM BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "RIXTEK",
+  "name": "RIXOS PREMIUM TEKIROVA",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "RIXSUN",
+  "name": "RIXOS SUNGATE HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "ROYALH",
+  "name": "ROYAL ALHAMBRA PALACE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ROYDRA",
+  "name": "ROYAL DRAGON  HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "RYLGAR",
+  "name": "ROYAL GARDEN BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "ROYHOL",
+  "name": "ROYAL HOLIDAY PALACE",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "ROYSEG",
+  "name": "ROYAL SEGINUS HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "ROYTAJ",
+  "name": "ROYAL TAJ MAHAL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "ROYWIN",
+  "name": "ROYAL WINGS",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "RBI",
+  "name": "RUBI HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "RBPS",
+  "name": "RUBI PLATINIUM SIGN",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "RUBI",
+  "name": "RUBI PLATINUM SPA RESORT&SUITES",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SLFBKT",
+  "name": "SEALIFE BUKET BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SLIFE",
+  "name": "SEALIFE FAMILY RESORT HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "SLFBKM",
+  "name": "SEALIFE KEMER RESORT",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "SEAME",
+  "name": "SEAMELIA BEACH RESORT & SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SHKUMK",
+  "name": "SEHER KUMKOY STAR RESORT&SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SHRSRT",
+  "name": "SEHER RESORT&SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SEHQUA",
+  "name": "SEHER SIDE QUALITY RESORT & SPA(ADULT+16)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SHSUNP",
+  "name": "SEHER SUN PALACE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SLCCB",
+  "name": "SELECTUM COLLECTION BODRUM",
+  "area": "BODRUM",
+  "regionCode": "BOD"
+ },
+ {
+  "code": "SELCOL",
+  "name": "SELECTUM COLORS BODRUM",
+  "area": "BODRUM",
+  "regionCode": "BOD"
+ },
+ {
+  "code": "SLCELT",
+  "name": "SELECTUM COLOURS SIDE(EX.EUPHORIA BARBAROSS)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SELCO",
+  "name": "SELECTUM FAMILY COMFORT SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SLCFAM",
+  "name": "SELECTUM FAMILY RESORT BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SLCFSD",
+  "name": "SELECTUM FAMILY RESORT SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SLCLUX",
+  "name": "SELECTUM LUXURY RESORT BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SLCNOA",
+  "name": "SELECTUM NOA BELEK (EX.CESARS BELEK)",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SELENE",
+  "name": "SELENE BEACH RESORT(+16)",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SNSTV",
+  "name": "SENSITIVE PREMIUM RESORT&SPA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SNZGR",
+  "name": "SENZA GARDEN HOLIDAY CLUB",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SNZGRS",
+  "name": "SENZA GRAND SANTANA HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SENZAS",
+  "name": "SENZA SUNSET BEACH HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SNZTIN",
+  "name": "SENZA THE INN RESORT & SPA",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SERENS",
+  "name": "SERENIS HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SEREN",
+  "name": "SERENITY QUEEN HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "SWDRM",
+  "name": "SHERWOOD DREAMS RESORT",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SWEXKM",
+  "name": "SHERWOOD EXCLUSIVE KEMER HOTEL",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "SWEXLR",
+  "name": "SHERWOOD EXCLUSIVE LARA HOTEL",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "SIAM",
+  "name": "SIAM ELEGANCE HOTELS & SPA",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SPCH",
+  "name": "SPICE HOTEL",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "STRLIG",
+  "name": "STARLIGHT RESORT HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUBCHS",
+  "name": "SUENO BEACH SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUDXBL",
+  "name": "SUENO DELUXE BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SUGFBL",
+  "name": "SUENO GOLF BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SULTDR",
+  "name": "SULTAN OF DREAMS",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SULSD",
+  "name": "SULTAN OF SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUNEFE",
+  "name": "SUNIS EFES ROYAL PALACE RESORT & SPA",
+  "area": "IZMIR",
+  "regionCode": "ADB"
+ },
+ {
+  "code": "ELITA",
+  "name": "SUNIS HOTELS ELITA BEACH",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "EVREN",
+  "name": "SUNIS HOTELS EVREN BEACH",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUNSU",
+  "name": "SUNIS HOTELS HOTEL SU",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "SUNKUM",
+  "name": "SUNIS HOTELS KUMKOY BEACH",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUNMEL",
+  "name": "SUNMELIA BEACH RESORT",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SNRISE",
+  "name": "SUNRISE RESORT & SPA",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUNTHA",
+  "name": "SUNTHALIA HOTELS&RESORTS (ADULT ONLY)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SUSESI",
+  "name": "SUSESI LUXURY RESORT",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "SWANK",
+  "name": "SWANDOR KEMER RESORT HOTELS",
+  "area": "KEMER",
+  "regionCode": "KMR"
+ },
+ {
+  "code": "SWTOPL",
+  "name": "SWANDOR TOPKAPI PALACE",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "SYHTL",
+  "name": "SY HOTELS BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "THLOLG",
+  "name": "THE LAND OF LEGENDS KINGDOM HOTEL",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "THEN",
+  "name": "THE LAND OF LEGENDS NICKELODEON HOTEL",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "TITDLB",
+  "name": "TITANIC DELUXE GOLF BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "TITBCL",
+  "name": "TITANIC DELUXE LARA(TITANIC BEACH LARA)",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "TRDASP",
+  "name": "TRENDY ASPENDOS BEACH",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "TRDLAR",
+  "name": "TRENDY LARA",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "TRDPL",
+  "name": "TRENDY PALM BEACH (ADULT ONLY 16+)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "TRDPRG",
+  "name": "TRENDY PERGE RESORT&SUITES",
+  "area": "ANTALYA",
+  "regionCode": "AYT"
+ },
+ {
+  "code": "TRSD",
+  "name": "TRENDY SIDE BEACH (ADULT ONLY16+)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "TRDVER",
+  "name": "TRENDY VERBENA BEACH",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "BRTUA",
+  "name": "TUI BLUE BARUT ANDIZ",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "TBPG",
+  "name": "TUI BLUE PALM GARDEN",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "SWSNSM",
+  "name": "TUI BLUE SHERWOOD BELEK HOTEL",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "TUIMAB",
+  "name": "TUI MAGIC LIFE BELEK",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "JCRSID",
+  "name": "TUI MAGIC LIFE JACARANDA SIDE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "TUIMAS",
+  "name": "TUI MAGIC LIFE MASMAVI",
+  "area": "BELEK",
+  "regionCode": "BLK"
+ },
+ {
+  "code": "UTOB",
+  "name": "UTOPIA BEACH CLUB",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "UTRE",
+  "name": "UTOPIA RESORT & RESIDENCE",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "UTOP",
+  "name": "UTOPIA WORLD HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "VILSFH",
+  "name": "VILLA SUN FLOWER HOTEL",
+  "area": "ALANYA",
+  "regionCode": "ALY"
+ },
+ {
+  "code": "VONELT",
+  "name": "VON RESORT ELITE HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "VONGBC",
+  "name": "VON RESORT GOLDEN BEACH HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "VONGCO",
+  "name": "VON RESORT GOLDEN COAST HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "VOXMAR",
+  "name": "VOX MARIS RESORT (ADULT ONLY +16)",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "WSHG",
+  "name": "WASHINGTON RESORT HOTEL",
+  "area": "SIDE",
+  "regionCode": "SID"
+ },
+ {
+  "code": "WELL",
+  "name": "WELL PALACE SIDE",
+  "area": "SIDE",
+  "regionCode": "SID"
+ }
+]
